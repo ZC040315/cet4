@@ -106,10 +106,11 @@ cet4/
 ├── data/
 │   ├── words-core.js     ← 主干词 1500（自动生成，约 200KB）
 │   └── words-leaf.js     ← 叶子词 2346（自动生成，约 290KB）
-└── scripts/
-    ├── fetch-words.mjs   ← 从 ECDICT 重新生成上面两个文件
-    ├── check-data.mjs    ← 数据自检
-    └── render-check.mjs  ← 渲染 + 交互自检（自带无头浏览器驱动）
+├── scripts/
+│   ├── fetch-words.mjs   ← 从 ECDICT 重新生成上面两个文件
+│   ├── check-data.mjs    ← 数据自检
+│   └── render-check.mjs  ← 渲染 + 交互自检（自带无头浏览器驱动）
+└── THIRD-PARTY.md        ← 词表数据的来源与 MIT 许可声明
 ```
 
 ### 词表数据从哪来（这一节最重要）
