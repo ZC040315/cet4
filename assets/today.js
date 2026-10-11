@@ -152,6 +152,19 @@
             '<button class="btn btn--sm" type="button" data-real-audio>打卡</button>'
           );
 
+    // 短读：保底档及以上都有（规划书第十一节：阅读 10 / 15 / 20 分钟）
+    var readRow =
+      day.readGoal === 0
+        ? ''
+        : taskRow(
+            'read',
+            '短读 ' + day.readGoal + ' 篇',
+            '一篇 100–150 词，读完对一句中文说明 · 约 ' + (mode.readMinutes || 10) + ' 分钟',
+            '今天 ' + day.readDone + ' 篇已完成',
+            day.readDone >= day.readGoal,
+            'reading.html'
+          );
+
     var tierChips = P.MODES.map(function (m) {
       return '<button class="chip" type="button" data-tier="' + m.id + '" aria-pressed="' +
         (m.id === mode.id) + '">' + m.label + ' · ' + m.newWords + ' 新词</button>';
@@ -176,6 +189,7 @@
           'study.html?mode=review', reviewSkip) +
         listenRow +
         realRow +
+        readRow +
       '</div>' +
       (mode.id === 'min' ? '' :
         '<button class="btn btn--block" type="button" data-min>只有 10 分钟？→ 今天只做最重要的 10 个词</button>' +

@@ -155,6 +155,10 @@ const SEED_STUDY = (() => {
     srs,
     days,
     listen,
+    readings: {
+      'read-01': { rounds: 1, lastDone: dayKey(-1), ms: 300000 },
+      'read-02': { rounds: 1, lastDone: dayKey(0), ms: 280000 },
+    },
     settings: { theme: '', tier: '' },
   }
 })()
@@ -177,6 +181,7 @@ const FACTS = {
   listenRecog: 3,
   listenUnknown: 3,
   listenDue: 1,
+  readingsDone: 2,
   studyRate: Math.round((2 / 3) * 100), // 开始那天到今天共 3 天，完成 2 天
   daysLeft: PLAN.daysLeft(),
   // 今日页的默认档位、复习上限，都由「摸底结果 + 四档」算出来，不写死
@@ -225,6 +230,8 @@ const PAGES = [
     seed: 'study',
     hash: '?clip=pass-01&mode=relisten',
   },
+  { file: 'reading.html', name: 'read-list', test: 'READ_LIST', seed: 'study' },
+  { file: 'reading.html', name: 'read-flow', test: 'READ_FLOW', seed: 'study', hash: '?id=read-01' },
   { file: 'about.html', name: 'about', test: 'ABOUT', needsData: false },
 ]
 
@@ -527,9 +534,15 @@ const TODAY_TEST = `(() => {
   info.stdNew = (stdText.match(/新词 (\\d+) 个/) || [])[1] || null;
   info.hasListenRow = Boolean(document.querySelector('[data-task="listen"]'));
   info.hasRealRow = Boolean(document.querySelector('[data-task="realaudio"]'));
+  info.hasReadRow = Boolean(document.querySelector('[data-task="read"]'));
   if (info.stdNew !== '20') problems.push('标准档新词应该是 20，实际 ' + info.stdNew);
   if (!info.hasListenRow) problems.push('标准档应该出现精听任务');
   if (!info.hasRealRow) problems.push('标准档应该出现真题音频打卡');
+  if (!info.hasReadRow) problems.push('标准档应该出现短读任务');
+  if (info.hasReadRow) {
+    info.readRowSays = document.querySelector('[data-task="read"] .faint').textContent;
+    if (!/15 分钟/.test(info.readRowSays)) problems.push('标准档短读应该写 15 分钟：' + info.readRowSays);
+  }
   if (info.hasListenRow) {
     info.listenRowSays = document.querySelector('[data-task="listen"] .faint').textContent;
     if (!/重听|25 分钟/.test(info.listenRowSays)) problems.push('精听任务说明不对：' + info.listenRowSays);
@@ -544,6 +557,7 @@ const TODAY_TEST = `(() => {
   info.afterMin = (after.match(/新词 (\\d+) 个/) || [])[1] || null;
   info.minGone = !document.querySelector('[data-min]');
   info.listenRowGone = !document.querySelector('[data-task="listen"]');
+  info.readRowGone = !document.querySelector('[data-task="read"]');
   const stored = JSON.parse(localStorage.getItem('cet4.v1'));
   info.storedTodayTier = stored.days[window.CET4_SRS.dateKey()].tier;
   info.storedDefaultTier = stored.settings.tier || '(没设过)';
@@ -552,6 +566,7 @@ const TODAY_TEST = `(() => {
   if (info.storedTodayTier !== 'min') problems.push('今天的档位没有存进 localStorage：' + info.storedTodayTier);
   if (info.storedDefaultTier === 'min') problems.push('「只有 10 分钟」不该改默认档位 —— 它只是今天的台阶');
   if (!info.listenRowGone) problems.push('降到最轻档之后不该再要精听（那一档只保单词不断档）');
+  if (!info.readRowGone) problems.push('降到最轻档之后不该再要短读');
   return { info, problems };
 })()`
 
@@ -845,6 +860,79 @@ const LISTEN_RELISTEN_TEST = `(async () => {
   return { info, problems };
 })()`
 
+// ---------- 短读 ----------
+
+const READ_LIST_TEST = `(() => {
+  const problems = [];
+  const info = {};
+  const text = document.body.innerText;
+  info.cards = document.querySelectorAll('[data-reading]').length;
+  info.notReal = /不是真题/.test(text);
+  info.progressLine = /读过 ${FACTS.readingsDone} \\/ 6 篇/.test(text);
+  info.wordCounts = Array.from(document.querySelectorAll('[data-reading] .faint')).map((p) => p.textContent);
+  info.saysWords = /\\d+ 词/.test(text) && /个生词/.test(text);
+  if (info.cards !== 6) problems.push('应该有 6 篇短读，实际 ' + info.cards);
+  if (!info.notReal) problems.push('没有写明「不是真题」');
+  if (!info.progressLine) problems.push('没有显示「读过 ${FACTS.readingsDone} / 6 篇」');
+  if (!info.saysWords) problems.push('没有标出每篇的词数和生词数');
+  return { info, problems };
+})()`
+
+const READ_FLOW_TEST = `(() => {
+  const problems = [];
+  const info = {};
+  const SRS = window.CET4_SRS;
+  const key = SRS.dateKey();
+  const r = window.CET4_READINGS.readings.filter((x) => x.id === 'read-01')[0];
+  const step = () => {
+    const el = document.querySelector('[data-step]');
+    return el ? el.getAttribute('data-step') : null;
+  };
+
+  info.step0 = step();
+  info.marked = document.querySelectorAll('.rword').length;
+  info.gistHidden = !new RegExp(r.gist.slice(0, 6)).test(document.body.innerText);
+
+  // 点第一个生词 → 释义条 + 加进错词本
+  const word = document.querySelector('.rword').getAttribute('data-w');
+  document.querySelector('.rword').click();
+  const glossEl = document.querySelector('[data-gloss]');
+  info.glossWord = glossEl ? glossEl.getAttribute('data-gloss') : null;
+  info.glossText = glossEl ? glossEl.textContent.trim().slice(0, 40) : '';
+  info.glossFromVocab = glossEl ? window.CET4_APP.wordGloss(word).slice(0, 6) : '';
+  info.glossShowsMeaning = Boolean(glossEl) && info.glossText.indexOf(info.glossFromVocab) >= 0;
+
+  document.querySelector('[data-add]').click();
+  const store1 = JSON.parse(localStorage.getItem('cet4.v1'));
+  const e = store1.srs[word];
+  info.booked = [Boolean(e), e ? e.inBook : null, e ? e.due === SRS.addDays(key, 1) : null, e ? e.src : null];
+  info.bookMark = /已在错词本/.test(document.body.innerText);
+
+  // 读完 → 中文说明 + 生词表
+  document.querySelector('[data-finish]').click();
+  info.step1 = step();
+  info.gistShown = document.body.innerText.indexOf(r.gist.slice(0, 10)) >= 0;
+  info.wordRows = document.querySelectorAll('.classify').length;
+  const store2 = JSON.parse(localStorage.getItem('cet4.v1'));
+  info.rounds = store2.readings['read-01'].rounds;
+  info.readDone = store2.days[key].readDone;
+
+  if (info.step0 !== 'read') problems.push('应该从「读」开始，实际 ' + info.step0);
+  if (info.marked !== r.words.length) problems.push('标注的生词应该都能点：期望 ' + r.words.length + '，实际 ' + info.marked);
+  if (!info.gistHidden) problems.push('还没读完就把中文说明露出来了');
+  if (!info.glossShowsMeaning) problems.push('点生词没有显示词表里的释义：' + JSON.stringify(info));
+  if (!info.booked[0] || !info.booked[1] || !info.booked[2] || info.booked[3] !== 'reading') {
+    problems.push('「加进错词本」没写对：' + JSON.stringify(info.booked));
+  }
+  if (!info.bookMark) problems.push('加进错词本之后没有标记出来');
+  if (info.step1 !== 'done') problems.push('点「读完了」之后应该进小结，实际 ' + info.step1);
+  if (!info.gistShown) problems.push('小结里没有那句中文说明');
+  if (info.wordRows !== r.words.length) problems.push('小结里的生词表应该有 ' + r.words.length + ' 行，实际 ' + info.wordRows);
+  if (info.rounds !== 2) problems.push('读完之后 rounds 应该是 2（种子里有 1），实际 ' + info.rounds);
+  if (info.readDone !== 1) problems.push('今天的短读完成数应该是 1，实际 ' + info.readDone);
+  return { info, problems };
+})()`
+
 // ---------- 进度页 ----------
 
 const PROGRESS_TEST = `(() => {
@@ -874,6 +962,9 @@ const PROGRESS_TEST = `(() => {
   if (info.listenWordRows !== ${FACTS.listenUnknown}) problems.push('听力生词应该有 ${FACTS.listenUnknown} 个，实际 ' + info.listenWordRows);
   if (!/认识但没听出来/.test(document.body.innerText)) problems.push('进度页没有「认识但没听出来」这一类');
   if (!/不显示正确率|不是听写正确率/.test(document.body.innerText)) problems.push('进度页没说明为什么不显示正确率');
+  if (!/短读读过 ${FACTS.readingsDone} \\/ 6 篇/.test(document.body.innerText)) {
+    problems.push('进度页没写「短读读过 ${FACTS.readingsDone} / 6 篇」');
+  }
   return { info, problems };
 })()`
 
@@ -884,6 +975,8 @@ const TESTS = {
   LISTEN_LIST: LISTEN_LIST_TEST,
   LISTEN_FLOW: LISTEN_FLOW_TEST,
   LISTEN_RELISTEN: LISTEN_RELISTEN_TEST,
+  READ_LIST: READ_LIST_TEST,
+  READ_FLOW: READ_FLOW_TEST,
   PROGRESS: PROGRESS_TEST,
   PROBE: PROBE_TEST,
   PROBE_DONE: PROBE_DONE_TEST,

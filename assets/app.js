@@ -116,6 +116,7 @@
     rec.newGoal = mode.newWords;
     rec.reviewGoal = Math.min(mode.reviewCap, window.CET4_SRS.countDue(state.srs || {}, coreWords(), key));
     rec.listenGoal = mode.listen || 0;
+    rec.readGoal = mode.read || 0;
     rec.done = window.CET4_SRS.dayDone(rec);
     return rec;
   }
@@ -217,9 +218,60 @@
     for (var t = 0; t < tables.length; t++) {
       var list = tables[t] && tables[t].words;
       if (!list) continue;
-      for (var i = 0; i < list.length; i++) if (list[i].w === w) return list[i].zh;
+      for (var i = 0; i < list.length; i++) {
+        // 兜一层：万一数据里混进字面量 \n，也别让它显示成文本
+        if (list[i].w === w) return String(list[i].zh).replace(/\\r\\n|\\n|\\r/g, ' ');
+      }
     }
     return '';
+  }
+
+  /* ---------- 短读 ---------- */
+
+  function readingTable() {
+    return window.CET4_READINGS && window.CET4_READINGS.readings && window.CET4_READINGS.readings.length
+      ? window.CET4_READINGS
+      : null;
+  }
+
+  function readings() {
+    var t = readingTable();
+    return t ? t.readings : [];
+  }
+
+  function readingById(id) {
+    var list = readings();
+    for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+    return null;
+  }
+
+  function readingWordCount(r) {
+    var text = (r.paras || []).join(' ');
+    return (text.match(/[A-Za-z][A-Za-z'’-]*/g) || []).length;
+  }
+
+  /* 把短读标注的生词丢进背词的错词本。
+     这些词一定是四级词表里的（scripts/check-data.mjs 会把关），所以
+     seen=1 + box=1 + due 明天，就等于「今天学过、明天开始复习」——
+     它会和背词流程用同一套盒号往前走，而不是另起一个生词本。 */
+  function addToBook(word) {
+    var key = todayKey();
+    var added = false;
+    S.patch(function (state) {
+      var w = String(word || '').toLowerCase();
+      var e = S.entry(state, w, key);
+      if (e.inBook) return;
+      added = true;
+      e.seen = Math.max(1, e.seen || 0);
+      e.box = Math.max(1, e.box || 0);
+      e.due = window.CET4_SRS.addDays(key, 1);
+      e.inBook = true;
+      e.streakOk = 0;
+      e.src = 'reading';
+      if (!e.first) e.first = key;
+      e.last = key;
+    });
+    return added;
   }
 
   /* ---------- 「每天该背多少」那段结论，首页和摸底结果页共用 ---------- */
@@ -370,6 +422,11 @@
     listenTally: listenTally,
     listenDue: listenDue,
     wordGloss: wordGloss,
+    readingTable: readingTable,
+    readings: readings,
+    readingById: readingById,
+    readingWordCount: readingWordCount,
+    addToBook: addToBook,
     planHtml: planHtml,
     esc: esc,
     savePlan: savePlan,

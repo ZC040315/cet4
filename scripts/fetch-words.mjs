@@ -138,6 +138,9 @@ const WORD_RE = /^[a-z][a-z'’-]*$/
 
 function zhOf(translation) {
   return String(translation || '')
+    // ECDICT 把换行写成字面量 "\n"（两个字符），先还原成真换行再按行处理，
+    // 否则界面上会原样显示出一个 \n
+    .replace(/\\r\\n|\\n|\\r/g, '\n')
     .split('\n')
     .map((s) => s.trim())
     .filter(Boolean)

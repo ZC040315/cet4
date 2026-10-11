@@ -10,6 +10,7 @@
      srs:   { word: { box, due, seen, ok, wrong, streakOk, inBook, first, last } },
      days:  { "2026-10-11": { tier, newGoal, newDone, reviewGoal, reviewDone, done, ms } },
      listen:{ clips: { "news-01": { rounds, lastDone, due, replays, blindPlays, words: { word: "recog"|"unknown" } } } },
+     readings: { "read-01": { rounds, lastDone, ms } },
      settings: { theme: "light" | "dark", tier: "std" }
    }
 
@@ -26,6 +27,7 @@
       srs: {},
       days: {},
       listen: { clips: {} },
+      readings: {},
       settings: { theme: '', tier: '', rate: 0.8, voice: '' },
       updatedAt: null,
     };
@@ -44,6 +46,7 @@
       out.days = data.days && typeof data.days === 'object' ? data.days : {};
       out.listen = data.listen && typeof data.listen === 'object' ? data.listen : { clips: {} };
       if (!out.listen.clips || typeof out.listen.clips !== 'object') out.listen.clips = {};
+      out.readings = data.readings && typeof data.readings === 'object' ? data.readings : {};
       out.settings = data.settings && typeof data.settings === 'object' ? data.settings : {};
       if (out.settings.theme === undefined) out.settings.theme = '';
       if (out.settings.tier === undefined) out.settings.tier = '';
@@ -121,6 +124,8 @@
         reviewDone: 0,
         listenGoal: 0,
         listenDone: 0,
+        readGoal: 0,
+        readDone: 0,
         realAudio: false,
         done: false,
         ms: 0,
@@ -131,6 +136,8 @@
     rec.reviewDone = Number(rec.reviewDone) || 0;
     rec.listenGoal = Number(rec.listenGoal) || 0;
     rec.listenDone = Number(rec.listenDone) || 0;
+    rec.readGoal = Number(rec.readGoal) || 0;
+    rec.readDone = Number(rec.readDone) || 0;
     rec.realAudio = Boolean(rec.realAudio);
     rec.ms = Number(rec.ms) || 0;
     rec.done = Boolean(rec.done);
@@ -151,6 +158,20 @@
     rec.replays = Number(rec.replays) || 0;
     rec.blindPlays = Number(rec.blindPlays) || 0;
     if (!rec.words || typeof rec.words !== 'object') rec.words = {};
+    return rec;
+  }
+
+  /* ---------- 短读：每一篇的记录 ---------- */
+
+  function reading(state, id) {
+    if (!state.readings || typeof state.readings !== 'object') state.readings = {};
+    var rec = state.readings[id];
+    if (!rec || typeof rec !== 'object') {
+      rec = { rounds: 0, lastDone: '', ms: 0 };
+      state.readings[id] = rec;
+    }
+    rec.rounds = Number(rec.rounds) || 0;
+    rec.ms = Number(rec.ms) || 0;
     return rec;
   }
 
@@ -190,6 +211,7 @@
     day: day,
     entry: entry,
     clip: clip,
+    reading: reading,
     counts: counts,
     exportJson: exportJson,
     importJson: importJson,

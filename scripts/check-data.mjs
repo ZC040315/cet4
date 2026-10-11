@@ -101,6 +101,63 @@ if (core) {
   }
 }
 
+/* ---------- 短读材料 ---------- */
+// 规划书第四节第 4 条：100–150 词 + 标注生词 + 一句中文说明。
+// 生词只标词不写释义，释义一律从词表查 —— 所以这里必须在词表里查得到，
+// 而且必须真的出现在正文里（标了个正文里没有的词，页面上就会有一个点不开的坑）。
+
+const WORD_RE_LOOSE = /[A-Za-z][A-Za-z'’-]*/g
+
+function tokensOf(text) {
+  return (String(text).toLowerCase().match(WORD_RE_LOOSE) || []).filter(Boolean)
+}
+
+let readings = null
+try {
+  readings = load('data/readings.js', 'CET4_READINGS')
+} catch (e) {
+  errors.push(e.message)
+}
+
+if (readings && core && leaf) {
+  const vocab = new Set()
+  ;[...core.words, ...leaf.words].forEach((w) => vocab.add(w.w))
+
+  const meta = readings.meta || {}
+  const list = readings.readings || []
+  if (meta.count !== list.length) errors.push('data/readings.js 的 meta.count=' + meta.count + '，实际 ' + list.length + ' 篇')
+  if (!meta.source) errors.push('短读数据缺 meta.source')
+
+  const seenIds = new Set()
+  let wordsTotal = 0
+  list.forEach((r, i) => {
+    const where = '短读 ' + (r.id || '第 ' + (i + 1) + ' 篇')
+    if (!r.id || !r.title || !r.gist || !r.topic) errors.push(where + ' 缺字段（id/title/gist/topic）')
+    if (seenIds.has(r.id)) errors.push(where + ' 的 id 重复')
+    seenIds.add(r.id)
+    if (!(r.level >= 1 && r.level <= 3)) errors.push(where + ' 的 level 应该是 1–3')
+    const paras = r.paras || []
+    if (paras.length < 2) errors.push(where + ' 至少要两段')
+    const text = paras.join(' ')
+    const count = tokensOf(text).length
+    wordsTotal += count
+    if (count < 100 || count > 150) {
+      errors.push(where + ' 正文 ' + count + ' 词，规划书要求 100–150 词')
+    }
+    const inText = new Set(tokensOf(text))
+    const marked = r.words || []
+    if (!marked.length) errors.push(where + ' 没有标注生词')
+    if (marked.length > 8) warns.push(where + ' 标了 ' + marked.length + ' 个生词，一屏里太多会变成负担')
+    marked.forEach((w) => {
+      const key = String(w).toLowerCase()
+      if (!inText.has(key)) errors.push(where + ' 标注的生词「' + w + '」在正文里没有出现')
+      if (!vocab.has(key)) errors.push(where + ' 标注的生词「' + w + '」在四级词表里查不到释义，页面上会点不开')
+    })
+    if (/\u2014/.test(text)) warns.push(where + ' 正文里有破折号，朗读/排版上容易被当成断句')
+  })
+  console.log('短读 ' + list.length + ' 篇 · 合计 ' + wordsTotal + ' 词')
+}
+
 if (core) console.log('主干词 ' + core.words.length + ' 个')
 if (leaf) console.log('叶子词 ' + leaf.words.length + ' 个')
 if (core && leaf) console.log('合计 ' + (core.words.length + leaf.words.length) + ' 个')

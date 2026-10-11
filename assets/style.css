@@ -392,6 +392,35 @@ footer.site p { margin: 0 0 10px; }
 .classify:last-of-type { border-bottom: 0; }
 .classify-word { margin-bottom: 8px; font-size: 18px; }
 
+/* ---------- 短读 ---------- */
+
+.read-para { margin: 0 0 16px; font-size: 18px; line-height: 1.85; }
+.read-para:last-of-type { margin-bottom: 0; }
+
+.rword {
+  font: inherit;
+  color: inherit;
+  padding: 0;
+  border: 0;
+  border-bottom: 2px dotted var(--accent);
+  border-radius: 0;
+  line-height: inherit;
+}
+
+.rword.is-on { background: var(--surface-2); border-bottom-style: solid; }
+
+.gloss {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  border-top: 1px dashed var(--line);
+  margin-top: 18px;
+  padding-top: 12px;
+  font-size: 16px;
+  min-height: 34px;
+}
+
 .days-strip { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
 
 .days-strip { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }

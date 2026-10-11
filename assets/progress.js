@@ -56,6 +56,12 @@
     var listened = tally.recognized + tally.unknown;
     var recogPct = listened ? Math.round((tally.recognized / listened) * 100) : 0;
     var dueClips = A.listenDue(state, key);
+    // 短读：读过几篇
+    var allReadings = A.readings();
+    var readRec = state.readings || {};
+    var doneReadings = allReadings.filter(function (r) {
+      return readRec[r.id] && readRec[r.id].rounds;
+    });
 
     // 最近 14 天：完成的实心、做了一部分的对半、没动的空着
     var strip = [];
@@ -144,6 +150,8 @@
         '<h2>学过多少</h2>' +
         '<p class="muted">已经进过卡片的主干词 <b class="num">' + learned + '</b> 个；今天到期的复习词 <b class="num">' + dueToday + '</b> 个。</p>' +
         '<p class="faint">主干词一共 ' + words.length + ' 个，其中摸底标「不认识」的 ' + A.summary().unknown + ' 个。</p>' +
+        '<p class="muted" style="margin-top:12px">短读读过 <b class="num">' + doneReadings.length + '</b> / ' +
+        allReadings.length + ' 篇。<a href="reading.html">去读一篇</a></p>' +
       '</div>';
   }
 
