@@ -49,6 +49,20 @@
     return window.CET4_WORDS_CORE && window.CET4_WORDS_CORE.words ? window.CET4_WORDS_CORE : null;
   }
 
+  function coreWords() {
+    var t = coreTable();
+    return t ? t.words : [];
+  }
+
+  // 摸底里「认识 / 不认识」的判断（背词阶段用它挑新词）
+  function answers() {
+    return S.layer(S.read(), 'core').answers;
+  }
+
+  function todayKey() {
+    return window.CET4_SRS.dateKey();
+  }
+
   function summary() {
     var table = coreTable();
     var total = table ? table.words.length : 0;
@@ -76,6 +90,75 @@
     plan.total = s.total;
     plan.done = s.done;
     return plan;
+  }
+
+  /* ---------- 档位（四档）与今天的目标 ---------- */
+
+  // 没说选哪档时，用摸底算出来的推荐量对应的那一档
+  function defaultMode() {
+    var plan = currentPlan();
+    var rec = plan.recommended || 0;
+    for (var i = 0; i < P.MODES.length; i++) if (P.MODES[i].newWords >= rec) return P.MODES[i];
+    return P.MODES[P.MODES.length - 1];
+  }
+
+  function modeFor(state, key) {
+    var day = S.day(state, key);
+    var id = day.tier || (state.settings && state.settings.tier) || '';
+    return P.modeById(id) || defaultMode();
+  }
+
+  // 把今天的目标写回存储：新词按档位、复习取「到期数」和档位上限里小的那个
+  function applyGoals(state, key) {
+    var mode = modeFor(state, key);
+    var rec = S.day(state, key);
+    rec.tier = mode.id;
+    rec.newGoal = mode.newWords;
+    rec.reviewGoal = Math.min(mode.reviewCap, window.CET4_SRS.countDue(state.srs || {}, coreWords(), key));
+    rec.done = window.CET4_SRS.dayDone(rec);
+    return rec;
+  }
+
+  function todayState() {
+    var state = S.read();
+    var key = todayKey();
+    applyGoals(state, key);
+    var mode = modeFor(state, key);
+    return { state: state, key: key, day: state.days[key], mode: mode };
+  }
+
+  function setTier(id) {
+    S.patch(function (state) {
+      if (!state.settings) state.settings = {};
+      state.settings.tier = id;
+      S.day(state, todayKey()).tier = id;
+      applyGoals(state, todayKey());
+    });
+  }
+
+  // 「只有 10 分钟」用这个：只降今天，明天自动回到你原来选的档
+  function setTierToday(id) {
+    S.patch(function (state) {
+      S.day(state, todayKey()).tier = id;
+      applyGoals(state, todayKey());
+    });
+  }
+
+  // 从开始那天算起是第几天（摸底完成那天算第 1 天）
+  function startKey() {
+    var state = S.read();
+    var fromProbe = state.probe && state.probe.core && state.probe.core.doneAt;
+    var keys = Object.keys(state.days || {}).sort();
+    var candidates = [];
+    if (fromProbe) candidates.push(window.CET4_SRS.dateKey(fromProbe));
+    if (keys.length) candidates.push(keys[0]);
+    if (!candidates.length) return todayKey();
+    candidates.sort();
+    return candidates[0];
+  }
+
+  function dayNumber() {
+    return window.CET4_SRS.diffDays(startKey(), todayKey()) + 1;
   }
 
   /* ---------- 「每天该背多少」那段结论，首页和摸底结果页共用 ---------- */
@@ -207,8 +290,19 @@
   window.CET4_APP = {
     applyTheme: applyTheme,
     coreTable: coreTable,
+    coreWords: coreWords,
+    answers: answers,
+    todayKey: todayKey,
     summary: summary,
     currentPlan: currentPlan,
+    defaultMode: defaultMode,
+    modeFor: modeFor,
+    applyGoals: applyGoals,
+    todayState: todayState,
+    setTier: setTier,
+    setTierToday: setTierToday,
+    startKey: startKey,
+    dayNumber: dayNumber,
     planHtml: planHtml,
     esc: esc,
     savePlan: savePlan,

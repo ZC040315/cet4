@@ -7,7 +7,9 @@
    {
      probe: { core: { answers: { word: 1|0 }, cursor: 3, startedAt, updatedAt, doneAt } },
      plan:  { unknown, daysLeft, recommended, ... } | null,
-     settings: { theme: "light" | "dark" }
+     srs:   { word: { box, due, seen, ok, wrong, streakOk, inBook, first, last } },
+     days:  { "2026-10-11": { tier, newGoal, newDone, reviewGoal, reviewDone, done, ms } },
+     settings: { theme: "light" | "dark", tier: "std" }
    }
 
    说明：answers 用单词本身当键，不用下标 —— 这样以后词表加词、重新排序，
@@ -17,7 +19,7 @@
   var KEY = 'cet4.v1';
 
   function blank() {
-    return { probe: {}, plan: null, settings: { theme: '' }, updatedAt: null };
+    return { probe: {}, plan: null, srs: {}, days: {}, settings: { theme: '', tier: '' }, updatedAt: null };
   }
 
   function read() {
@@ -29,7 +31,9 @@
       var out = blank();
       out.probe = data.probe && typeof data.probe === 'object' ? data.probe : {};
       out.plan = data.plan || null;
-      out.settings = data.settings && typeof data.settings === 'object' ? data.settings : { theme: '' };
+      out.srs = data.srs && typeof data.srs === 'object' ? data.srs : {};
+      out.days = data.days && typeof data.days === 'object' ? data.days : {};
+      out.settings = data.settings && typeof data.settings === 'object' ? data.settings : { theme: '', tier: '' };
       out.updatedAt = data.updatedAt || null;
       return out;
     } catch (e) {
@@ -88,6 +92,34 @@
     return JSON.stringify(read(), null, 2);
   }
 
+  /* ---------- 某一天的记录（今日页、背词页、进度页都读写它） ---------- */
+
+  function day(state, key) {
+    if (!state.days || typeof state.days !== 'object') state.days = {};
+    var rec = state.days[key];
+    if (!rec || typeof rec !== 'object') {
+      rec = { tier: '', newGoal: 0, newDone: 0, reviewGoal: 0, reviewDone: 0, done: false, ms: 0 };
+      state.days[key] = rec;
+    }
+    rec.newDone = Number(rec.newDone) || 0;
+    rec.reviewDone = Number(rec.reviewDone) || 0;
+    rec.ms = Number(rec.ms) || 0;
+    rec.done = Boolean(rec.done);
+    return rec;
+  }
+
+  /* ---------- 每个词的间隔重复记录 ---------- */
+
+  function entry(state, word, today) {
+    if (!state.srs || typeof state.srs !== 'object') state.srs = {};
+    var rec = state.srs[word];
+    if (!rec || typeof rec !== 'object') {
+      rec = { box: 0, due: today, seen: 0, ok: 0, wrong: 0, streakOk: 0, inBook: false, first: today, last: today };
+      state.srs[word] = rec;
+    }
+    return rec;
+  }
+
   // 导入：整份替换。返回 { ok, error }
   function importJson(text) {
     var data;
@@ -109,6 +141,8 @@
     write: write,
     patch: patch,
     layer: layer,
+    day: day,
+    entry: entry,
     counts: counts,
     exportJson: exportJson,
     importJson: importJson,

@@ -15,13 +15,48 @@
   var RESERVE_DAYS = 14;
   var MIN_STUDY_DAYS = 7;
 
-  // 规划书第十一节的四档。newWords 是「新词」的量，复习词按约 2.5 倍跟着走。
+  /* 规划书第十一节的四档。这里的数字是从规划书那句校准话推出来的：
+     「单词 25 分钟对应大约 20 个新词 + 50–60 个复习词」——
+     所以标准档 = 每天 20 个新词 + 55 个复习，保底和充足按 20/25/30 分钟的单词时长等比缩。 */
   var MODES = [
-    { id: 'min', label: '只有 10 分钟', newWords: 10, minutes: '10 分钟', note: '状态最差的那天也能完成，它的意义是不让你断档' },
-    { id: 'floor', label: '保底', newWords: 20, minutes: '30 分钟', note: '单词 20 分钟 + 短读 10 分钟' },
-    { id: 'std', label: '标准', newWords: 25, minutes: '80 分钟', note: '单词 25 + 精听 25 + 短读 15 + 真题音频 15' },
-    { id: 'full', label: '充足', newWords: 30, minutes: '100 分钟', note: '上限档，做不到也不叫失败' },
+    {
+      id: 'min',
+      label: '只有 10 分钟',
+      newWords: 10,
+      reviewCap: 0,
+      minutes: '10 分钟',
+      note: '今天只做最重要的 10 个词。状态最差的那天也能完成，它的意义是不让你断档。',
+    },
+    {
+      id: 'floor',
+      label: '保底',
+      newWords: 15,
+      reviewCap: 40,
+      minutes: '30 分钟',
+      note: '单词 20 分钟（15 新词 + 40 复习）+ 短读 10 分钟。',
+    },
+    {
+      id: 'std',
+      label: '标准',
+      newWords: 20,
+      reviewCap: 55,
+      minutes: '80 分钟',
+      note: '单词 25 分钟（20 新词 + 55 复习）+ 精听 25 + 短读 15 + 真题音频 15。',
+    },
+    {
+      id: 'full',
+      label: '充足',
+      newWords: 25,
+      reviewCap: 70,
+      minutes: '100 分钟',
+      note: '上限档，做不到也不叫失败。',
+    },
   ];
+
+  function modeById(id) {
+    for (var i = 0; i < MODES.length; i++) if (MODES[i].id === id) return MODES[i];
+    return null;
+  }
 
   function daysLeft(now) {
     var exam = new Date(EXAM_ISO).getTime();
@@ -97,6 +132,7 @@
     SCAN_PER_DAY: SCAN_PER_DAY,
     RESERVE_DAYS: RESERVE_DAYS,
     MODES: MODES,
+    modeById: modeById,
     daysLeft: daysLeft,
     planFor: planFor,
   };

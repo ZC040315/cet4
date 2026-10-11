@@ -28,7 +28,7 @@ const OUT = args.out ? path.resolve(String(args.out)) : path.join(os.tmpdir(), '
 const WANT_SHOTS = Boolean(args.shot)
 const LIVE = args.url ? String(args.url).replace(/\/+$/, '') : ''
 
-// ---------- 造一份「摸底已扫完」的假进度，用来验证首页和词表的结果态 ----------
+// ---------- 造几份假进度，用来验证「摸底扫完 / 学了一阵」之后的样子 ----------
 
 function loadWords() {
   const src = fs.readFileSync(path.join(ROOT, 'data', 'words-core.js'), 'utf8')
@@ -38,39 +38,152 @@ function loadWords() {
   return sandbox.window.CET4_WORDS_CORE.words
 }
 
-function seedStore() {
-  const words = loadWords()
+// 页面逻辑里那些纯计算的模块也拉到 Node 里来，测试就能算出「应该是多少」再对答案，
+// 而不是把数字写死在断言里（写死的话，换一天跑就会假报警）。
+const PARTS = (() => {
+  const sandbox = { window: {}, console }
+  vm.createContext(sandbox)
+  for (const f of ['assets/plan.js', 'assets/srs.js']) {
+    vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), sandbox, { filename: f })
+  }
+  return sandbox.window
+})()
+const PLAN = PARTS.CET4_PLAN
+
+function defaultModeFor(unknown) {
+  const rec = PLAN.planFor({ unknown, remainingScan: 0 }).recommended
+  return PLAN.MODES.filter((m) => m.newWords >= rec)[0] || PLAN.MODES[PLAN.MODES.length - 1]
+}
+
+const WORDS = loadWords()
+
+function pad(n) {
+  return n < 10 ? '0' + n : '' + n
+}
+
+// 今天 ± n 天的日期键，和 assets/srs.js 用的格式一致（本机时区）
+function dayKey(offset) {
+  const d = new Date()
+  d.setDate(d.getDate() + offset)
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
+}
+
+function stamp(offset) {
+  const d = new Date()
+  d.setDate(d.getDate() + offset)
+  return d.toISOString()
+}
+
+// every 个词标一个「不认识」；答案的键是单词本身
+function answersFor(every) {
   const answers = {}
-  words.forEach((w, i) => {
-    answers[w.w] = i % 5 === 0 ? 0 : 1 // 五分之一标「不认识」
+  WORDS.forEach((w, i) => {
+    answers[w.w] = i % every === 0 ? 0 : 1
   })
+  return answers
+}
+
+function probeRecord(answers) {
   return {
-    probe: {
-      core: {
-        answers,
-        cursor: words.length,
-        startedAt: '2026-10-11T10:00:00.000Z',
-        updatedAt: '2026-10-11T11:00:00.000Z',
-        doneAt: '2026-10-11T11:00:00.000Z',
-      },
+    core: {
+      answers,
+      cursor: WORDS.length,
+      startedAt: stamp(-3),
+      updatedAt: stamp(-2),
+      doneAt: stamp(-2),
     },
-    plan: null,
-    settings: { theme: '' },
   }
 }
 
-const SEEDED = seedStore()
-const SEED = JSON.stringify(SEEDED)
-const SEEDED_UNKNOWN = Object.values(SEEDED.probe.core.answers).filter((v) => v === 0).length
+// 只做完摸底：300 个不认识 → 推荐每天 10 个 → 默认落在「只有 10 分钟」档
+const SEED_PROBE = {
+  probe: probeRecord(answersFor(5)),
+  plan: null,
+  srs: {},
+  days: {},
+  settings: { theme: '', tier: '' },
+}
+
+// 摸底 + 学了一阵：500 个不认识 → 推荐每天 15 个 → 默认「保底」档；
+// 前 80 个已经学过，其中 30 个今天到期、25 个在错词本里；前两天都做完了
+const SEED_STUDY = (() => {
+  const answers = answersFor(3)
+  const unknown = WORDS.filter((w) => answers[w.w] === 0)
+  const srs = {}
+  const learned = unknown.slice(0, 80)
+  learned.forEach((w, i) => {
+    srs[w.w] = {
+      box: (i % 5) + 1,
+      due: i < 30 ? dayKey(-1) : dayKey(5 + (i % 7)),
+      seen: (i % 4) + 1,
+      ok: 1 + (i % 5),
+      wrong: i < 25 ? 3 : 0,
+      streakOk: i % 2,
+      inBook: i < 25,
+      first: dayKey(-6),
+      last: dayKey(-1),
+    }
+  })
+  const days = {}
+  days[dayKey(-2)] = { tier: 'std', newGoal: 20, newDone: 20, reviewGoal: 0, reviewDone: 0, done: true, ms: 900000 }
+  days[dayKey(-1)] = { tier: 'std', newGoal: 20, newDone: 20, reviewGoal: 10, reviewDone: 10, done: true, ms: 900000 }
+  return {
+    probe: probeRecord(answers),
+    plan: null,
+    srs,
+    days,
+    settings: { theme: '', tier: '' },
+  }
+})()
+
+const SEEDS = {
+  none: '',
+  probe: JSON.stringify(SEED_PROBE),
+  study: JSON.stringify(SEED_STUDY),
+}
+
+// 各份假进度里「事先说好」的数字，测试直接拿它们对答案
+const FACTS = {
+  probeUnknown: Object.values(SEED_PROBE.probe.core.answers).filter((v) => v === 0).length, // 300
+  studyUnknown: Object.values(SEED_STUDY.probe.core.answers).filter((v) => v === 0).length, // 500
+  studyLearned: Object.keys(SEED_STUDY.srs).length, // 80
+  studyDue: Object.values(SEED_STUDY.srs).filter((e) => e.due <= dayKey(0)).length, // 30
+  studyBook: Object.values(SEED_STUDY.srs).filter((e) => e.inBook).length, // 25
+  studyDayDone: 2,
+  studyRate: Math.round((2 / 3) * 100), // 开始那天到今天共 3 天，完成 2 天
+  daysLeft: PLAN.daysLeft(),
+  // 今日页的默认档位、复习上限，都由「摸底结果 + 四档」算出来，不写死
+  new300: defaultModeFor(300).newWords,
+  new500: defaultModeFor(500).newWords,
+  review500: Math.min(defaultModeFor(500).reviewCap, Object.values(SEED_STUDY.srs).filter((e) => e.due <= dayKey(0)).length),
+  perDay500: PLAN.planFor({ unknown: 500, remainingScan: 0 }).recommended,
+}
+
+function seedScript(name) {
+  if (name === 'none') return `localStorage.clear(); 'cleared'`
+  // 注意这里要 stringify 两次：SEEDS 里已经是 JSON 文本，还要再包一层引号，
+  // 否则 setItem 收到的是对象字面量，存进去会变成 "[object Object]"
+  return `localStorage.setItem('cet4.v1', ${JSON.stringify(SEEDS[name])}); 'seeded'`
+}
 
 const PAGES = [
-  { file: 'index.html', name: 'index', test: 'INDEX' },
-  { file: 'index.html', name: 'index-done', test: 'INDEX_DONE', seed: true },
+  { file: 'index.html', name: 'today-未摸底', test: 'INDEX' },
+  { file: 'index.html', name: 'today-刚摸底完', test: 'TODAY_LIGHT', seed: 'probe' },
+  { file: 'index.html', name: 'today-学了一阵', test: 'TODAY', seed: 'study' },
   { file: 'probe.html', name: 'probe', test: 'PROBE' },
+  { file: 'probe.html', name: 'probe-扫完了', test: 'PROBE_DONE', seed: 'study' },
   { file: 'words.html', name: 'words', test: 'WORDS' },
-  { file: 'words.html', name: 'words-unknown', test: 'WORDS_UNKNOWN', seed: true, hash: '?mark=0' },
+  { file: 'words.html', name: 'words-unknown', test: 'WORDS_UNKNOWN', seed: 'study', hash: '?mark=0' },
+  { file: 'study.html', name: 'study-new', test: 'STUDY_NEW', seed: 'study', hash: '?mode=new' },
+  { file: 'study.html', name: 'study-review', test: 'STUDY_REVIEW', seed: 'study', hash: '?mode=review' },
+  { file: 'study.html', name: 'study-book', test: 'STUDY_BOOK', seed: 'study', hash: '?mode=book' },
+  { file: 'progress.html', name: 'progress', test: 'PROGRESS', seed: 'study' },
   { file: 'about.html', name: 'about', test: 'ABOUT', needsData: false },
 ]
+
+// --only=study 只跑名字里含 study 的用例（改一个页面时不用等全部跑完）
+const ONLY = args.only ? String(args.only) : ''
+const RUN_PAGES = ONLY ? PAGES.filter((p) => p.name.indexOf(ONLY) >= 0) : PAGES
 
 const VIEWPORTS = [
   { w: 1280, h: 900, label: 'desktop' },
@@ -164,6 +277,16 @@ const GEOMETRY = `(() => {
   });
   o.hOffenders = off.slice(0, 6);
   o.dataLoaded = Boolean(window.CET4_WORDS_CORE && window.CET4_WORDS_CORE.words);
+  o.text = document.body.innerText.split('\\n').filter(Boolean).slice(0, 6).join(' / ');
+  // 假进度有没有真的写进 localStorage（诊断用：数字不对就说明注入那一步没生效）
+  o.storageLen = (function () {
+    try {
+      var raw = localStorage.getItem('cet4.v1');
+      return raw ? raw.length + ' 字节' : '空';
+    } catch (e) {
+      return '读不到';
+    }
+  })();
   return o;
 })()`
 
@@ -275,7 +398,7 @@ const WORDS_UNKNOWN_TEST = `(() => {
   info.chipOn = Boolean(chip) && chip.getAttribute('aria-pressed') === 'true';
   info.marks = Array.from(document.querySelectorAll('.row-mark')).map((n) => n.textContent);
   info.allUnknown = info.marks.length > 0 && info.marks.every((m) => m === '不认识');
-  if (info.unknownRows !== ${SEEDED_UNKNOWN}) problems.push('带进度进「不认识」应该有 ${SEEDED_UNKNOWN} 个，实际 ' + info.unknownRows);
+  if (info.unknownRows !== ${FACTS.studyUnknown}) problems.push('带进度进「不认识」应该有 ${FACTS.studyUnknown} 个，实际 ' + info.unknownRows);
   if (!info.chipOn) problems.push('「不认识」筛选没有选中');
   if (!info.allUnknown) problems.push('列表里混进了别的标记：' + info.marks.slice(0, 5).join('/'));
   return { info, problems };
@@ -293,15 +416,17 @@ const ABOUT_TEST = `(() => {
   info.roundTrip = S.importJson(json).ok === true;
   info.rejectsGarbage = S.importJson('这不是 JSON').ok === false;
   info.hasReset = Boolean(document.querySelector('[data-reset]'));
+  info.hasResetAll = Boolean(document.querySelector('[data-reset-all]'));
   if (!info.exportButton || !info.importButton) problems.push('说明页缺导出 / 导入按钮');
   if (json.length < 20) problems.push('导出的 JSON 是空的');
   if (!info.roundTrip) problems.push('导出的 JSON 不能再导入回来');
   if (!info.rejectsGarbage) problems.push('导入乱文件时没有报错');
   if (!info.hasReset) problems.push('说明页缺「清空摸底记录」');
+  if (!info.hasResetAll) problems.push('说明页缺「清空全部」');
   return { info, problems };
 })()`
 
-// 首页：没扫过的时候只说一件事 —— 去摸底
+// 今日页：没扫过的时候只说一件事 —— 去摸底
 const INDEX_TEST = `(() => {
   const problems = [];
   const info = {};
@@ -314,30 +439,233 @@ const INDEX_TEST = `(() => {
   return { info, problems };
 })()`
 
-// 首页：扫完之后给出「每天背多少」和四档对照
-const INDEX_DONE_TEST = `(() => {
+// 今日页：刚扫完摸底、还没背过任何词 —— 300 个不认识 → 推荐每天 10 个 → 默认「只有 10 分钟」档
+const TODAY_LIGHT_TEST = `(() => {
+  const problems = [];
+  const info = {};
+  const text = document.body.innerText;
+  info.says = text.split('\\n').filter(Boolean).slice(0, 8).join(' / ');
+  info.newLine = (text.match(/新词 (\\d+) 个/) || [])[1] || null;
+  info.reviewLine = (text.match(/复习 (\\d+) 个/) || [])[1] || null;
+  info.tierChips = document.querySelectorAll('[data-tier]').length;
+  info.minButton = Boolean(document.querySelector('[data-min]'));
+  info.hasStreak = /连续/.test(text);
+  if (info.newLine !== '${FACTS.new300}') problems.push('推荐每天 ${FACTS.new300} 个 → 今日页新词应该是 ${FACTS.new300} 个，实际 ' + info.newLine);
+  if (info.reviewLine !== '0') problems.push('还没学过任何词 → 复习应该是 0 个，实际 ' + info.reviewLine);
+  if (info.tierChips !== 4) problems.push('应该有 4 个档位可选，实际 ' + info.tierChips);
+  if (info.minButton) problems.push('已经在「只有 10 分钟」档了，不该再显示那个按钮');
+  if (!info.hasStreak) problems.push('今日页没有连续天数');
+  return { info, problems };
+})()`
+
+// 今日页：学了一阵 —— 500 个不认识 → 推荐 15 个 → 默认「保底」档，复习有 30 个到期
+const TODAY_TEST = `(() => {
+  const problems = [];
+  const info = {};
+  const text = document.body.innerText;
+  info.newLine = (text.match(/新词 (\\d+) 个/) || [])[1] || null;
+  info.reviewLine = (text.match(/复习 (\\d+) 个/) || [])[1] || null;
+  info.dayNumber = (text.match(/第 (\\d+) 天/) || [])[1] || null;
+  info.minButton = Boolean(document.querySelector('[data-min]'));
+  info.doneRows = document.querySelectorAll('.task[data-done="1"]').length;
+
+  if (info.newLine !== '${FACTS.new500}') problems.push('推荐每天 ${FACTS.new500} 个 → 默认档新词应该是 ${FACTS.new500}，实际 ' + info.newLine);
+  if (info.reviewLine !== '${FACTS.review500}') problems.push('今天到期 ${FACTS.studyDue} 个、档位上限之内 → 复习应该是 ${FACTS.review500}，实际 ' + info.reviewLine);
+  if (!info.minButton) problems.push('不在最轻档时应该显示「只有 10 分钟」按钮');
+  if (info.dayNumber !== '3') problems.push('两周前开始、今天应该是第 3 天，实际 ' + info.dayNumber);
+
+  // 点「只有 10 分钟」应该立刻把今天的量降下来
+  document.querySelector('[data-min]').click();
+  const after = document.body.innerText;
+  info.afterMin = (after.match(/新词 (\\d+) 个/) || [])[1] || null;
+  info.minGone = !document.querySelector('[data-min]');
+  const stored = JSON.parse(localStorage.getItem('cet4.v1'));
+  info.storedTodayTier = stored.days[window.CET4_SRS.dateKey()].tier;
+  info.storedDefaultTier = stored.settings.tier || '(没设过)';
+  if (info.afterMin !== '10') problems.push('点了「只有 10 分钟」后新词应该变成 10 个，实际 ' + info.afterMin);
+  if (!info.minGone) problems.push('点了「只有 10 分钟」后按钮应该消失');
+  if (info.storedTodayTier !== 'min') problems.push('今天的档位没有存进 localStorage：' + info.storedTodayTier);
+  if (info.storedDefaultTier === 'min') problems.push('「只有 10 分钟」不该改默认档位 —— 它只是今天的台阶');
+  return { info, problems };
+})()`
+
+// 摸底页：扫完之后的结果页（每天背多少 + 四档对照）
+const PROBE_DONE_TEST = `(() => {
   const problems = [];
   const info = {};
   const text = document.body.innerText;
   info.says = text.split('\\n').filter(Boolean).slice(0, 6).join(' / ');
-  info.hasResult = /摸底结果/.test(text);
+  info.hasResult = /摸底扫完了/.test(text);
   const m = text.match(/每天背 (\\d+) 个新词/);
   info.perDay = m ? Number(m[1]) : null;
   info.tableRows = document.querySelectorAll('.table tbody tr').length;
   info.hereRow = document.querySelectorAll('.table tbody tr[data-here]').length;
-  if (!info.hasResult) problems.push('扫完之后首页没有显示「摸底结果」');
-  if (!info.perDay) problems.push('首页没算出「每天背 N 个新词」');
+  if (!info.hasResult) problems.push('扫完之后没有显示摸底结果');
+  if (info.perDay !== ${FACTS.perDay500}) problems.push('${FACTS.studyUnknown} 个不认识，按剩余天数算 → 每天 ${FACTS.perDay500} 个，实际 ' + info.perDay);
   if (info.tableRows !== 4) problems.push('四档表应该有 4 行，实际 ' + info.tableRows);
   if (info.hereRow !== 1) problems.push('四档表里应该正好标出一个「你在这」，实际 ' + info.hereRow);
   return { info, problems };
 })()`
 
+// ---------- 背词：新词、复习、错词本 ----------
+
+// 队列长度从「第 1 / 15 · 新词」这行里读，免得把数字写死在断言里
+const QUEUE_LEN = `const queueLen = () => {
+  const t = document.querySelector('.probe-meta').textContent;
+  return Number(t.split('/')[1].trim().split(' ')[0]);
+};`
+
+const STUDY_NEW_TEST = `(() => {
+  const problems = [];
+  const info = {};
+  const SRS = window.CET4_SRS;
+  const key = SRS.dateKey();
+  ${QUEUE_LEN}
+  const card = document.querySelector('[data-study-card]');
+  if (!card) {
+    problems.push('新词卡片没渲染出来');
+    return { info, problems };
+  }
+  info.queueLen = queueLen();
+  const word = document.querySelector('.study-word').textContent;
+  info.word = word;
+  info.meaningShown = document.querySelector('.study-answer').textContent.trim().length > 0;
+  info.grades = Array.from(document.querySelectorAll('[data-grade]')).map((b) => b.getAttribute('data-grade'));
+
+  // 第一张：记住了 → 进盒 1，今天的新词完成数 +1
+  document.querySelector('[data-grade="known"]').click();
+  let store = JSON.parse(localStorage.getItem('cet4.v1'));
+  const e1 = store.srs[word];
+  info.afterKnown = e1 ? [e1.box, e1.seen, e1.inBook] : null;
+  info.dayNewDone = store.days[key] ? store.days[key].newDone : null;
+  info.advanced = Number(document.querySelector('[data-study-index]').getAttribute('data-study-index')) === 1;
+
+  // 第二张：还不熟 → 进错词本，而且本轮末尾会再问一遍
+  const word2 = document.querySelector('.study-word').textContent;
+  document.querySelector('[data-grade="missed"]').click();
+  store = JSON.parse(localStorage.getItem('cet4.v1'));
+  const e2 = store.srs[word2];
+  info.afterMissed = e2 ? [e2.box, e2.inBook, e2.wrong] : null;
+  info.dayNewDone2 = store.days[key].newDone;
+  info.queueAfterMissed = queueLen();
+
+  if (info.queueLen !== ${FACTS.new500}) problems.push('默认档的新词队列应该是 ${FACTS.new500} 个，实际 ' + info.queueLen);
+  if (!info.meaningShown) problems.push('新词卡片应该直接给出释义');
+  if (JSON.stringify(info.grades) !== JSON.stringify(['missed', 'known'])) problems.push('新词卡片应该是「还不熟 / 记住了」两个按钮：' + JSON.stringify(info.grades));
+  if (JSON.stringify(info.afterKnown) !== JSON.stringify([1, 1, false])) problems.push('「记住了」应该进盒 1 且不进错词本：' + JSON.stringify(info.afterKnown));
+  if (info.dayNewDone !== 1) problems.push('今日新词完成数应该是 1：' + info.dayNewDone);
+  if (!info.advanced) problems.push('打完分没有换下一张卡');
+  if (JSON.stringify(info.afterMissed) !== JSON.stringify([1, true, 1])) problems.push('「还不熟」应该进错词本、盒 1：' + JSON.stringify(info.afterMissed));
+  if (info.dayNewDone2 !== 2) problems.push('今日新词完成数应该是 2：' + info.dayNewDone2);
+  if (info.queueAfterMissed !== ${FACTS.new500} + 1) problems.push('「还不熟」的词应该在本轮末尾再问一遍：' + info.queueAfterMissed);
+  return { info, problems };
+})()`
+
+const STUDY_REVIEW_TEST = `(() => {
+  const problems = [];
+  const info = {};
+  const SRS = window.CET4_SRS;
+  const key = SRS.dateKey();
+  ${QUEUE_LEN}
+  const card = document.querySelector('[data-study-card]');
+  if (!card) {
+    problems.push('复习卡片没渲染出来');
+    return { info, problems };
+  }
+  info.queueLen = queueLen();
+  const word = document.querySelector('[data-study-word]').getAttribute('data-study-word');
+  info.word = word;
+  info.noGradesYet = document.querySelectorAll('[data-grade]').length === 0;
+  info.answerHidden = document.querySelector('.study-answer').textContent.trim() === '';
+
+  document.querySelector('[data-reveal]').click();
+  info.gradesAfterReveal = Array.from(document.querySelectorAll('[data-grade]')).map((b) => b.getAttribute('data-grade'));
+  info.answerShown = document.querySelector('.study-answer').textContent.trim().length > 0;
+
+  document.querySelector('[data-grade="missed"]').click();
+  const store = JSON.parse(localStorage.getItem('cet4.v1'));
+  const e = store.srs[word];
+  info.after = e ? [e.box, e.inBook, e.due === SRS.addDays(key, 1)] : null;
+  info.dayReviewDone = store.days[key].reviewDone;
+
+  if (info.queueLen !== ${FACTS.review500}) problems.push('今天到期 ${FACTS.studyDue} 个复习词、档位上限 ${FACTS.review500} → 队列应该是 ${FACTS.review500}，实际 ' + info.queueLen);
+  if (!info.noGradesYet) problems.push('复习卡片一开始不该有自评按钮 —— 要先自己回忆');
+  if (!info.answerHidden) problems.push('复习卡片一开始就把释义露出来了');
+  if (JSON.stringify(info.gradesAfterReveal) !== JSON.stringify(['known', 'fuzzy', 'missed'])) problems.push('看释义后应该是三档自评：' + JSON.stringify(info.gradesAfterReveal));
+  if (!info.answerShown) problems.push('点了「看释义」还是没有释义');
+  if (JSON.stringify(info.after) !== JSON.stringify([1, true, true])) problems.push('「忘了」应该打回盒 1、明天再见、进错词本：' + JSON.stringify(info.after));
+  if (info.dayReviewDone !== 1) problems.push('今日复习完成数应该是 1：' + info.dayReviewDone);
+  return { info, problems };
+})()`
+
+const STUDY_BOOK_TEST = `(() => {
+  const problems = [];
+  const info = {};
+  const SRS = window.CET4_SRS;
+  const key = SRS.dateKey();
+  ${QUEUE_LEN}
+  const card = document.querySelector('[data-study-card]');
+  if (!card) {
+    problems.push('错词本卡片没渲染出来');
+    return { info, problems };
+  }
+  info.queueLen = queueLen();
+  const word = document.querySelector('[data-study-word]').getAttribute('data-study-word');
+  info.word = word;
+  const before = JSON.parse(localStorage.getItem('cet4.v1'));
+  info.pickedInBook = Boolean(before.srs[word]) && before.srs[word].inBook === true;
+
+  document.querySelector('[data-reveal]').click();
+  document.querySelector('[data-grade="known"]').click();
+  const store = JSON.parse(localStorage.getItem('cet4.v1'));
+  const e = store.srs[word];
+  info.after = e ? [e.inBook, e.streakOk] : null;
+  const today = store.days[key];
+  info.dayUntouched = !today || (!today.newDone && !today.reviewDone);
+
+  if (info.queueLen !== ${FACTS.studyBook}) problems.push('错词本里有 ${FACTS.studyBook} 个词 → 队列应该是 ${FACTS.studyBook}，实际 ' + info.queueLen);
+  if (!info.pickedInBook) problems.push('错词本练习取到的词不在错词本里：' + word);
+  if (JSON.stringify(info.after) !== JSON.stringify([true, 1])) problems.push('错词本里第一次「记得」还应该留着（连着两次才出）：' + JSON.stringify(info.after));
+  if (!info.dayUntouched) problems.push('错词本是加练，不该算进今天的完成数');
+  return { info, problems };
+})()`
+
+// ---------- 进度页 ----------
+
+const PROGRESS_TEST = `(() => {
+  const problems = [];
+  const info = {};
+  const stats = Array.from(document.querySelectorAll('.stat b')).map((b) => b.textContent.trim());
+  info.stats = stats;
+  info.cells = document.querySelectorAll('.day-cell').length;
+  info.doneCells = document.querySelectorAll('.day-cell.is-done').length;
+  const book = document.querySelector('[data-book]');
+  info.bookRows = book ? Number(book.getAttribute('data-book')) : 0;
+  info.bookHeading = /错词本 · ${FACTS.studyBook} 个/.test(document.body.innerText);
+
+  if (stats[0] !== '${FACTS.studyDayDone}') problems.push('连续天数应该是 ${FACTS.studyDayDone}，实际 ' + stats[0]);
+  if (stats[1] !== '${FACTS.studyDayDone}') problems.push('最长记录应该是 ${FACTS.studyDayDone}，实际 ' + stats[1]);
+  if (stats[2] !== '${FACTS.studyRate}%') problems.push('完成率应该是 ${FACTS.studyRate}%，实际 ' + stats[2]);
+  if (stats[3] !== '${FACTS.daysLeft}') problems.push('距考试应该是 ${FACTS.daysLeft} 天，实际 ' + stats[3]);
+  if (info.cells !== 14) problems.push('近日条应该有 14 格，实际 ' + info.cells);
+  if (info.doneCells !== ${FACTS.studyDayDone}) problems.push('近日条里应该有 ${FACTS.studyDayDone} 个实心格，实际 ' + info.doneCells);
+  if (info.bookRows !== ${FACTS.studyBook}) problems.push('错词本列表应该有 ${FACTS.studyBook} 行，实际 ' + info.bookRows);
+  if (!info.bookHeading) problems.push('错词本标题里的数量不对');
+  return { info, problems };
+})()`
+
 const TESTS = {
+  STUDY_NEW: STUDY_NEW_TEST,
+  STUDY_REVIEW: STUDY_REVIEW_TEST,
+  STUDY_BOOK: STUDY_BOOK_TEST,
+  PROGRESS: PROGRESS_TEST,
   PROBE: PROBE_TEST,
+  PROBE_DONE: PROBE_DONE_TEST,
   WORDS: WORDS_TEST,
   WORDS_UNKNOWN: WORDS_UNKNOWN_TEST,
   INDEX: INDEX_TEST,
-  INDEX_DONE: INDEX_DONE_TEST,
+  TODAY: TODAY_TEST,
+  TODAY_LIGHT: TODAY_LIGHT_TEST,
   ABOUT: ABOUT_TEST,
 }
 
@@ -386,7 +714,7 @@ async function run() {
   const report = []
   let shots = 0
 
-  for (const page of PAGES) {
+  for (const page of RUN_PAGES) {
     const file = path.join(ROOT, page.file)
     if (!LIVE && !fs.existsSync(file)) {
       problems.push(page.file + ' 不存在')
@@ -409,19 +737,14 @@ async function run() {
         await send('Page.navigate', { url })
         await sleep(900)
 
-        // 每个用例都从干净的进度开始；要验「扫过之后」的用例，先塞一份假进度再刷新
-        await evaluate(
-          send,
-          page.seed
-            ? `localStorage.setItem('cet4.v1', ${JSON.stringify(SEED)}); 'seeded'`
-            : `localStorage.clear(); 'cleared'`
-        )
+        // 每个用例都从干净的进度开始；要验「扫完 / 学了一阵」的用例，先塞一份假进度再刷新
+        await evaluate(send, seedScript(page.seed || 'none'))
         await send('Page.reload')
         await sleep(900)
 
         const geo = (await evaluate(send, GEOMETRY)) || {}
         report.push(
-          `${page.name}/${vp.label}: 溢出 ${geo.hOverflow}px · 高度 ${geo.pageHeight} · 词表${geo.dataLoaded ? '已' : '未'}加载`
+          `${page.name}/${vp.label}: 溢出 ${geo.hOverflow}px · 高度 ${geo.pageHeight} · 词表${geo.dataLoaded ? '已' : '未'}加载 · 进度${geo.storageLen}字节\n      「${geo.text}」`
         )
         if (geo.hOverflow > 0) problems.push(`${page.name}/${vp.label} 横向溢出 ${geo.hOverflow}px`)
         if (geo.hOffenders && geo.hOffenders.length) problems.push(`${page.name}/${vp.label} 元素越界：${geo.hOffenders.join(' ')}`)
@@ -436,8 +759,6 @@ async function run() {
           val.problems.forEach((p) => problems.push(`${page.name}/${vp.label} ${p}`))
         }
 
-        logs.forEach((l) => problems.push(`${page.name}/${vp.label} ${l}`))
-
         if (WANT_SHOTS) {
           fs.mkdirSync(OUT, { recursive: true })
           const shot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false })
@@ -447,6 +768,8 @@ async function run() {
       } catch (e) {
         problems.push(`${page.name}/${vp.label} 探测失败：${e.message}`)
       } finally {
+        // 页面里的报错不管测试有没有跑完都要报出来
+        logs.forEach((l) => problems.push(`${page.name}/${vp.label} ${l}`))
         try {
           await fetch(`${CDP}/json/close/${created.id}`)
         } catch {
