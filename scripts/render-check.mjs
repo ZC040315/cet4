@@ -4,8 +4,9 @@
 // 这个脚本负责另一半：真的用浏览器把页面打开，量几何、抓控制台报错，
 // 把摸底点一遍、把词表筛一遍，顺手出几张截图。
 //
-// 用法：node scripts/render-check.mjs [--shot] [--out=目录]
+// 用法：node scripts/render-check.mjs [--shot] [--out=目录] [--url=线上地址]
 //   默认不截图；加 --shot 才截图（默认写到系统临时目录，不污染仓库）。
+//   加 --url=https://zc040315.github.io/cet4 就改成测线上那一份（发布之后再跑一遍）。
 //   只需要本机装了 Chrome 或 Edge（脚本自己找），不需要 npm 装任何东西。
 
 import fs from 'node:fs'
@@ -25,6 +26,7 @@ const args = Object.fromEntries(
 const ROOT = path.resolve(import.meta.dirname, '..')
 const OUT = args.out ? path.resolve(String(args.out)) : path.join(os.tmpdir(), 'cet4-qa')
 const WANT_SHOTS = Boolean(args.shot)
+const LIVE = args.url ? String(args.url).replace(/\/+$/, '') : ''
 
 // ---------- 造一份「摸底已扫完」的假进度，用来验证首页和词表的结果态 ----------
 
@@ -386,7 +388,7 @@ async function run() {
 
   for (const page of PAGES) {
     const file = path.join(ROOT, page.file)
-    if (!fs.existsSync(file)) {
+    if (!LIVE && !fs.existsSync(file)) {
       problems.push(page.file + ' 不存在')
       continue
     }
@@ -403,7 +405,8 @@ async function run() {
           mobile: vp.w < 700,
         })
 
-        await send('Page.navigate', { url: pathToFileURL(file).href + (page.hash || '') })
+        const url = LIVE ? `${LIVE}/${page.file}${page.hash || ''}` : pathToFileURL(file).href + (page.hash || '')
+        await send('Page.navigate', { url })
         await sleep(900)
 
         // 每个用例都从干净的进度开始；要验「扫过之后」的用例，先塞一份假进度再刷新
@@ -454,6 +457,7 @@ async function run() {
   }
 
   console.log('渲染自检：')
+  console.log('  目标：' + (LIVE || '本地文件（file://）'))
   report.forEach((r) => console.log('  ' + r))
   if (WANT_SHOTS) console.log(`\n截图 ${shots} 张 → ${OUT}`)
 

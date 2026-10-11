@@ -13,7 +13,9 @@
 - 本地路径：`C:\Users\周超\Documents\ChatGPT\AI-MAKE-Web Site\cet4\`
 - 它属于「AI-MAKE-Web Site」这个网站项目下的一个子站，和 `economics-map/` 平级
 - **独立 git 仓库**：已 `git init`，分支 `main`，本地配置已就绪
-- **远端仓库还没建**：GitHub 上还没有 `ZC040315/cet4`
+- **远端仓库已建、已上线**（2026-10-11）：`https://github.com/ZC040315/cet4`（公开仓库）
+  - **线上地址：<https://zc040315.github.io/cet4/>** ← 手机上就用这个，双击本地文件只在电脑上有效
+  - Pages：`main` 分支根目录，改完 push 之后 30 秒～2 分钟内自动重新发布
 
 ### 凭据：不需要重新申请令牌
 
@@ -28,8 +30,13 @@ Windows 凭据管理器里已经存着一把 classic PAT（scopes `repo` + `work
 3. **不要跑 `git credential fill`** —— 它会触发浏览器 OAuth 授权窗口。判断凭据是否正常，
    用一次 `git push`（`git ls-remote` 不行：公开仓库可以匿名读，凭据坏了也会成功）
 4. 令牌 **2027-01-05 过期**
+5. **推送要开 HTTP/1.1。** 本仓库已设 `git config http.version HTTP/1.1`（已生效，不用再设）。
+   不设的话 `git push` 会报 `Recv failure: Connection was reset` —— 这是网络层掐掉
+   `git-receive-pack`，重试几次也没用，加这一条就通。`api.github.com` 不受影响。
 
-### 怎么建远端仓库（用现有令牌，不要新建）
+### 远端仓库是怎么建的（已经建完了，留在这里备查）
+
+**不要再跑一遍** —— 仓库和 Pages 都已经存在，重复 POST 只会报错：
 
 ```powershell
 $tok = $null
@@ -44,7 +51,7 @@ Invoke-WebRequest -UseBasicParsing -Uri 'https://api.github.com/repos/ZC040315/c
   -ContentType 'application/json' -Body '{"source":{"branch":"main","path":"/"}}'
 ```
 
-上线地址会是 `https://zc040315.github.io/cet4/`。
+上线地址是 `https://zc040315.github.io/cet4/`。
 
 ### 已定死的技术决策（不要在下一个会话里重新讨论）
 
@@ -76,7 +83,7 @@ Invoke-WebRequest -UseBasicParsing -Uri 'https://api.github.com/repos/ZC040315/c
 | --- | --- |
 | 规划书定稿 | ✅ |
 | 本地目录 + 独立 git 仓库 | ✅ |
-| 远端仓库 + GitHub Pages | ⬜ ← 从这里继续 |
+| 远端仓库 + GitHub Pages | ✅ 已上线：https://zc040315.github.io/cet4/ |
 | 阶段 1：主干词数据 + 摸底模式 | ✅ 做完（2026-10-11），**当天就能开始扫词** |
 | 阶段 2：今日页 + 间隔重复 + 错词本 | ⬜ |
 | 阶段 3：精听页（TTS 朗读 + 听写对照） | ⬜ |
@@ -157,9 +164,11 @@ node scripts/fetch-words.mjs --source=D:\path\ecdict.csv # 已经有一份 ecdic
 node scripts/check-data.mjs      # 数据：字段、重复、主干/叶子重叠、词频顺序
 node scripts/render-check.mjs    # 渲染：横向溢出、控制台报错、摸底点击、词表筛选
 node scripts/render-check.mjs --shot   # 顺便出截图（默认写到系统临时目录）
+node scripts/render-check.mjs --url=https://zc040315.github.io/cet4   # 直接测线上那一份
 ```
 
 两个都过 = 数据没坏、页面能点、手机宽度不溢出。改完东西记得各跑一遍。
+**push 之后建议再跑一次带 `--url=` 的那条**，确认线上和本地是同一份东西。
 
 ### 已知的口径和取舍（下个会话别重新推翻）
 
