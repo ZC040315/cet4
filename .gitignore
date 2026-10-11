@@ -1,0 +1,12 @@
+# 临时 / 本地草稿
+*.tmp
+*.log
+.DS_Store
+Thumbs.db
+
+# 上游字典源文件（65MB，用 scripts/fetch-words.mjs 现下现用，不进仓库）
+ecdict.csv
+*.zip
+
+# 自检脚本的截图输出（默认写到系统临时目录，这里只是兜底）
+qa-out/

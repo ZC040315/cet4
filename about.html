@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>说明 · 过线</title>
+<link rel="icon" href="favicon.svg">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="shell">
+
+  <header class="topbar">
+    <div class="brand">过线 <small>四级备考站</small></div>
+    <nav class="nav">
+      <a href="index.html">首页</a>
+      <a href="probe.html">摸底</a>
+      <a href="words.html">词表</a>
+      <a href="about.html">说明</a>
+    </nav>
+    <button class="theme-toggle" type="button" data-theme-toggle>深色</button>
+  </header>
+
+  <main class="prose">
+    <h1>说明</h1>
+    <p class="lede">这个站只做一件事：让你在 62 天里用最少的意志力消耗过线。它不做题库，也不做「学习感」。</p>
+
+    <h2>现在有哪些东西</h2>
+    <ul>
+      <li><b>摸底</b>：把主干词快速扫一遍，只判断「认识 / 不认识」。扫完才知道你真正的起点，</li>
+      <li><b>词表</b>：主干词 + 叶子词，按词频分层，可以按「不认识」筛出来单独看，</li>
+      <li>进度、精听、短读还在做，规划里排在摸底之后。</li>
+    </ul>
+
+    <h2>前三天是摸底，不是学习</h2>
+    <p>
+      别急着按「每天 20 个新词」开始。先花三天把主干词扫完，每个词两秒，只判断认识 / 不认识。
+      一天扫 500 个，三天扫完。
+    </p>
+    <p>
+      扫完之后，页面会拿「你标了不认识的词数 + 剩余天数」算出每天该背多少。
+      为什么值得多花这三天：按假设的数字排计划，最容易在第三周崩掉；
+      三天换一个准确的起点，很划算。
+    </p>
+
+    <h2>什么时候扫词不准</h2>
+    <ul>
+      <li>看着眼熟、但说不出意思 → 算<b>不认识</b>。模棱两可的地方，按最坏情况记，</li>
+      <li>只认得某一种词义（比如只知道 <code>book</code> 是「书」，不知道是「预订」）→ 也算不认识，四级就爱考这些，</li>
+      <li>点错了直接按<b>撤销</b>，或者到词表里核对。</li>
+    </ul>
+
+    <h2>每天怎么用</h2>
+    <table class="table">
+      <thead>
+        <tr><th>档位</th><th class="num">每天新词</th><th>合计时间</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>只有 10 分钟</td><td class="num">10</td><td>10 分钟</td></tr>
+        <tr><td>保底</td><td class="num">20</td><td>30 分钟</td></tr>
+        <tr><td>标准</td><td class="num">25</td><td>80 分钟</td></tr>
+        <tr><td>充足</td><td class="num">30</td><td>100 分钟</td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top:14px">
+      <b>一条校准规则：</b>如果标准档连续一周都完不成，就把保底档当成你的正常水平。
+      降低标准叫校准，不叫失败。
+    </p>
+
+    <h2>内容来源</h2>
+    <ul>
+      <li><b>不放真题原文。</b>版权 + 无法核实（记错的「真题」比不背更糟），</li>
+      <li><b>词表与释义</b>：取自 ECDICT（开源英汉词典数据库，MIT 许可），
+        词条标签含 <code>cet4</code> 的即四级大纲词汇，</li>
+      <li><b>词频</b>：同一份数据里的 BNC（英国国家语料库）与当代语料库词频顺序。
+        主干词 = 四级词汇里词频最高的一档；叶子词 = 剩下的低频、生僻词，</li>
+      <li><b>重新生成</b>：<code>node scripts/fetch-words.mjs</code> 会从上游重新拉一份数据，
+        生成过程写在 <code>scripts/fetch-words.mjs</code> 里，每一步都能查。</li>
+    </ul>
+    <p class="faint">
+      规则只有一句：站里出现的每一个词，你都能知道它从哪来。释义是词典的原文，不是我编的。
+    </p>
+
+    <h2>进度存在哪</h2>
+    <p>
+      存在这台设备的浏览器 localStorage 里。<b>清除浏览器数据会一起清掉</b>，
+      换手机也带不走 —— 所以下面这两个按钮不是可选项。
+    </p>
+    <div class="card card--tight">
+      <h3>备份 / 搬家</h3>
+      <div class="btn-row" style="margin-top:0">
+        <button class="btn btn--sm" type="button" data-export>导出进度（JSON）</button>
+        <button class="btn btn--sm" type="button" data-import>导入进度</button>
+        <input type="file" accept="application/json,.json" class="hidden" data-import-file>
+      </div>
+      <p class="faint" style="margin-top:10px" data-import-note>导出后把文件存到自己能找到的地方；换设备时导入同一个文件。</p>
+    </div>
+
+    <h2>重来</h2>
+    <div class="card card--tight">
+      <h3>重新摸底</h3>
+      <p class="muted">把已经扫过的判断全部清掉，从第一个词重新开始。这个动作不可撤销。</p>
+      <button class="btn btn--sm" type="button" data-reset>清空摸底记录</button>
+      <p class="faint" style="margin-top:10px" data-reset-note></p>
+    </div>
+
+    <h2>关于名字</h2>
+    <p class="muted">站名暂定「过线」，规划书里的备选是「425」「主干词」。改起来只是几处文字，不用动结构。</p>
+  </main>
+
+  <footer class="site">
+    <p class="faint">考试日期：2026 年 12 月 12 日（周六）上午 9:00。倒计时按本机时间算。</p>
+  </footer>
+
+</div>
+
+<script src="assets/store.js"></script>
+<script src="assets/plan.js"></script>
+<script src="assets/app.js"></script>
+<script src="assets/about.js"></script>
+</body>
+</html>
