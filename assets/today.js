@@ -9,6 +9,7 @@
 
 (function () {
   var A = window.CET4_APP;
+  var S = window.CET4_STORE;
   var P = window.CET4_PLAN;
   var SRS = window.CET4_SRS;
   var main = document.getElementById('main');
@@ -27,9 +28,10 @@
     return Number(p[1]) + ' 月 ' + Number(p[2]) + ' 日';
   }
 
-  function taskRow(id, title, sub, doneText, done, href, skip) {
+  function taskRow(id, title, sub, doneText, done, href, skip, actionHtml) {
     var action;
     if (done) action = '<span class="done-mark">✓ ' + doneText + '</span>';
+    else if (actionHtml) action = actionHtml;
     else if (skip) action = '<span class="muted">今天不用做</span>';
     else action = '<a class="btn btn--primary btn--huge" href="' + href + '">开始</a>';
     return (
@@ -117,6 +119,39 @@
     }
     var reviewSkip = day.reviewGoal === 0;
 
+    // 精听：标准档及以上才有（规划书第十一节）
+    var listenDue = A.listenDue(state, key).length;
+    var listenSub;
+    if (day.listenGoal === 0) listenSub = '';
+    else if (listenDue) listenSub = '今天该重听 ' + listenDue + ' 篇（不写，只听，听懂八成就算过）· 约 3 分钟';
+    else listenSub = '一段自产短文，五步约 25 分钟' + (mode.realAudio ? '' : '');
+    var listenRow =
+      day.listenGoal === 0
+        ? ''
+        : taskRow(
+            'listen',
+            '精听 ' + day.listenGoal + ' 篇',
+            listenSub,
+            '今天 ' + day.listenDone + ' 篇已完成',
+            day.listenDone >= day.listenGoal,
+            'listening.html'
+          );
+
+    // 真题音频：站点只做打卡，不托管任何音频（规划书第四节第 5 条 / 第五节）
+    var realRow =
+      mode.realAudio === 0
+        ? ''
+        : taskRow(
+            'realaudio',
+            '真题音频 ' + mode.realAudio + ' 分钟',
+            '用官方出版物或学校发的真题音频，就着考场音响的感觉听，<b>不做逐句听写</b>。',
+            '今天打过卡',
+            Boolean(day.realAudio),
+            '',
+            false,
+            '<button class="btn btn--sm" type="button" data-real-audio>打卡</button>'
+          );
+
     var tierChips = P.MODES.map(function (m) {
       return '<button class="chip" type="button" data-tier="' + m.id + '" aria-pressed="' +
         (m.id === mode.id) + '">' + m.label + ' · ' + m.newWords + ' 新词</button>';
@@ -139,6 +174,8 @@
         taskRow('review', '复习 ' + day.reviewGoal + ' 个', reviewSub,
           '今天 ' + day.reviewDone + ' 个已完成', day.reviewGoal > 0 && day.reviewDone >= day.reviewGoal,
           'study.html?mode=review', reviewSkip) +
+        listenRow +
+        realRow +
       '</div>' +
       (mode.id === 'min' ? '' :
         '<button class="btn btn--block" type="button" data-min>只有 10 分钟？→ 今天只做最重要的 10 个词</button>' +
@@ -170,6 +207,16 @@
       A.setTierToday('min');
       render();
       window.scrollTo(0, 0);
+      return;
+    }
+    var audio = ev.target.closest ? ev.target.closest('[data-real-audio]') : null;
+    if (audio) {
+      var key = A.todayKey();
+      S.patch(function (state) {
+        S.day(state, key).realAudio = true;
+        A.applyGoals(state, key);
+      });
+      render();
     }
   });
 

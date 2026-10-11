@@ -127,11 +127,34 @@ const SEED_STUDY = (() => {
   const days = {}
   days[dayKey(-2)] = { tier: 'std', newGoal: 20, newDone: 20, reviewGoal: 0, reviewDone: 0, done: true, ms: 900000 }
   days[dayKey(-1)] = { tier: 'std', newGoal: 20, newDone: 20, reviewGoal: 10, reviewDone: 10, done: true, ms: 900000 }
+
+  // 精听记录：pass-01 昨天做过、今天该重听；pass-02 做过、过几天再重听
+  const listen = {
+    clips: {
+      'pass-01': {
+        rounds: 1,
+        lastDone: dayKey(-1),
+        due: dayKey(0),
+        replays: 2,
+        blindPlays: 2,
+        words: { permanent: 'recog', sleep: 'recog', researchers: 'unknown' },
+      },
+      'pass-02': {
+        rounds: 1,
+        lastDone: dayKey(0),
+        due: dayKey(3),
+        replays: 1,
+        blindPlays: 1,
+        words: { species: 'unknown', residents: 'recog', planners: 'unknown' },
+      },
+    },
+  }
   return {
     probe: probeRecord(answers),
     plan: null,
     srs,
     days,
+    listen,
     settings: { theme: '', tier: '' },
   }
 })()
@@ -150,6 +173,10 @@ const FACTS = {
   studyDue: Object.values(SEED_STUDY.srs).filter((e) => e.due <= dayKey(0)).length, // 30
   studyBook: Object.values(SEED_STUDY.srs).filter((e) => e.inBook).length, // 25
   studyDayDone: 2,
+  listenClipsDone: 2,
+  listenRecog: 3,
+  listenUnknown: 3,
+  listenDue: 1,
   studyRate: Math.round((2 / 3) * 100), // 开始那天到今天共 3 天，完成 2 天
   daysLeft: PLAN.daysLeft(),
   // 今日页的默认档位、复习上限，都由「摸底结果 + 四档」算出来，不写死
@@ -178,6 +205,26 @@ const PAGES = [
   { file: 'study.html', name: 'study-review', test: 'STUDY_REVIEW', seed: 'study', hash: '?mode=review' },
   { file: 'study.html', name: 'study-book', test: 'STUDY_BOOK', seed: 'study', hash: '?mode=book' },
   { file: 'progress.html', name: 'progress', test: 'PROGRESS', seed: 'study' },
+  {
+    file: 'listening.html',
+    name: 'listen-list',
+    test: 'LISTEN_LIST',
+    seed: 'study',
+  },
+  {
+    file: 'listening.html',
+    name: 'listen-flow',
+    test: 'LISTEN_FLOW',
+    seed: 'probe',
+    hash: '?clip=news-01',
+  },
+  {
+    file: 'listening.html',
+    name: 'listen-relisten',
+    test: 'LISTEN_RELISTEN',
+    seed: 'study',
+    hash: '?clip=pass-01&mode=relisten',
+  },
   { file: 'about.html', name: 'about', test: 'ABOUT', needsData: false },
 ]
 
@@ -474,11 +521,29 @@ const TODAY_TEST = `(() => {
   if (!info.minButton) problems.push('不在最轻档时应该显示「只有 10 分钟」按钮');
   if (info.dayNumber !== '3') problems.push('两周前开始、今天应该是第 3 天，实际 ' + info.dayNumber);
 
+  // 换到标准档：精听和真题音频这两行才会出现（规划书第十一节的表）
+  document.querySelector('[data-tier="std"]').click();
+  const stdText = document.body.innerText;
+  info.stdNew = (stdText.match(/新词 (\\d+) 个/) || [])[1] || null;
+  info.hasListenRow = Boolean(document.querySelector('[data-task="listen"]'));
+  info.hasRealRow = Boolean(document.querySelector('[data-task="realaudio"]'));
+  if (info.stdNew !== '20') problems.push('标准档新词应该是 20，实际 ' + info.stdNew);
+  if (!info.hasListenRow) problems.push('标准档应该出现精听任务');
+  if (!info.hasRealRow) problems.push('标准档应该出现真题音频打卡');
+  if (info.hasListenRow) {
+    info.listenRowSays = document.querySelector('[data-task="listen"] .faint').textContent;
+    if (!/重听|25 分钟/.test(info.listenRowSays)) problems.push('精听任务说明不对：' + info.listenRowSays);
+  }
+  document.querySelector('[data-real-audio]').click();
+  info.realAudio = JSON.parse(localStorage.getItem('cet4.v1')).days[window.CET4_SRS.dateKey()].realAudio === true;
+  if (!info.realAudio) problems.push('真题音频打卡没有写进存储');
+
   // 点「只有 10 分钟」应该立刻把今天的量降下来
   document.querySelector('[data-min]').click();
   const after = document.body.innerText;
   info.afterMin = (after.match(/新词 (\\d+) 个/) || [])[1] || null;
   info.minGone = !document.querySelector('[data-min]');
+  info.listenRowGone = !document.querySelector('[data-task="listen"]');
   const stored = JSON.parse(localStorage.getItem('cet4.v1'));
   info.storedTodayTier = stored.days[window.CET4_SRS.dateKey()].tier;
   info.storedDefaultTier = stored.settings.tier || '(没设过)';
@@ -486,6 +551,7 @@ const TODAY_TEST = `(() => {
   if (!info.minGone) problems.push('点了「只有 10 分钟」后按钮应该消失');
   if (info.storedTodayTier !== 'min') problems.push('今天的档位没有存进 localStorage：' + info.storedTodayTier);
   if (info.storedDefaultTier === 'min') problems.push('「只有 10 分钟」不该改默认档位 —— 它只是今天的台阶');
+  if (!info.listenRowGone) problems.push('降到最轻档之后不该再要精听（那一档只保单词不断档）');
   return { info, problems };
 })()`
 
@@ -630,6 +696,155 @@ const STUDY_BOOK_TEST = `(() => {
   return { info, problems };
 })()`
 
+// ---------- 精听 ----------
+
+const LISTEN_LIST_TEST = `(() => {
+  const problems = [];
+  const info = {};
+  const text = document.body.innerText;
+  info.clips = document.querySelectorAll('.clip-card').length;
+  info.typeHeadings = Array.from(document.querySelectorAll('h2')).map((h) => h.textContent.trim().split(' ')[0]);
+  info.dueLink = Boolean(document.querySelector('.clip-card a[href*="mode=relisten"]'));
+  info.notReal = /不是真题/.test(text);
+  info.five = /盲听/.test(text) && /逐句听写/.test(text) && /对照原文/.test(text) && /跟读/.test(text);
+  if (info.clips !== 9) problems.push('应该有 9 篇精听材料，实际 ' + info.clips);
+  if (info.typeHeadings.length !== 3) problems.push('应该按三种类型分三组，实际 ' + info.typeHeadings.length + ' 组');
+  if (!info.dueLink) problems.push('有到期该重听的篇目，列表里应该出现「重听」入口');
+  if (!info.notReal) problems.push('没有写明「不是真题」');
+  if (!info.five) problems.push('没有把五步流程说清楚');
+  return { info, problems };
+})()`
+
+// 把语音合成换成立刻回调：无头浏览器里没有声音引擎，真播会一直等
+const TTS_STUB = `
+  window.speechSynthesis.speak = function (u) { setTimeout(function () { if (u.onend) u.onend(); }, 0); };
+  window.speechSynthesis.cancel = function () {};
+  const wait = (ms) => new Promise(function (r) { setTimeout(r, ms); });`
+
+const LISTEN_FLOW_TEST = `(async () => {
+  const problems = [];
+  const info = {};
+  const SRS = window.CET4_SRS;
+  const key = SRS.dateKey();
+  const clip = window.CET4_LISTENING.clips.filter((c) => c.id === 'news-01')[0];
+  ${TTS_STUB}
+  const step = () => {
+    const el = document.querySelector('[data-step]');
+    return el ? el.getAttribute('data-step') : null;
+  };
+
+  info.step0 = step();
+  info.gistHidden = document.querySelector('.study-answer') === null;
+
+  document.querySelector('[data-play-all]').click();
+  // 连读时每句之间留了 420ms，7 句全播完大约 3 秒
+  await wait(3600);
+  info.playLabel = document.querySelector('[data-play-all]').textContent.trim();
+  document.querySelector('[data-gist]').click();
+  info.gistShown = /大意/.test(document.querySelector('.study-answer').textContent);
+
+  document.querySelector('[data-next-step]').click();
+  info.step1 = step();
+  const total = clip.sentences.length;
+  for (let i = 0; i < total; i++) {
+    const box = document.querySelector('[data-typed]');
+    if (!box) { problems.push('第 ' + (i + 1) + ' 句没有听写框'); break; }
+    box.value = i === 0 ? clip.sentences[0] : '';
+    box.dispatchEvent(new Event('input', { bubbles: true }));
+    const next = document.querySelector('[data-next]');
+    const toCompare = document.querySelector('[data-to-compare]');
+    if (next) next.click();
+    else if (toCompare) { toCompare.click(); break; }
+    else { problems.push('第 ' + (i + 1) + ' 句没有「下一句」按钮'); break; }
+  }
+
+  info.step2 = step();
+  info.diffBlocks = document.querySelectorAll('.diff-block').length;
+  info.diffMiss = document.querySelectorAll('.diff-miss').length;
+  info.classifyRows = document.querySelectorAll('.classify').length;
+  info.funcLine = /漏掉的虚词/.test(document.body.innerText);
+
+  const rows = () => document.querySelectorAll('.classify');
+  const word0 = rows()[0].getAttribute('data-word');
+  const word1 = rows()[1] ? rows()[1].getAttribute('data-word') : null;
+  rows()[0].querySelector('[data-kind="recog"]').click();
+  info.label0 = rows()[0].querySelector('[data-kind="recog"]').getAttribute('aria-pressed');
+  if (word1) {
+    rows()[1].querySelector('[data-kind="unknown"]').click();
+    info.label1 = rows()[1].querySelector('[data-kind="unknown"]').getAttribute('aria-pressed');
+  }
+
+  document.querySelector('[data-to-shadow]').click();
+  info.step3 = step();
+  let guard = 0;
+  while (document.querySelector('[data-next]') && guard++ < 40) document.querySelector('[data-next]').click();
+  document.querySelector('[data-finish]').click();
+  info.step4 = step();
+
+  const store = JSON.parse(localStorage.getItem('cet4.v1'));
+  const rec = store.listen.clips['news-01'];
+  info.rounds = rec.rounds;
+  info.dueTomorrow = rec.due === SRS.addDays(key, 1);
+  info.savedLabels = [rec.words[word0], word1 ? rec.words[word1] : null];
+  info.listenDone = store.days[key].listenDone;
+  info.doneShowsClasses = /认识但没听出来/.test(document.body.innerText) && /压根不认识/.test(document.body.innerText);
+
+  if (info.step0 !== 'blind') problems.push('应该从盲听开始，实际 ' + info.step0);
+  if (!info.gistHidden) problems.push('盲听这一步一开始不该把大意摊开');
+  if (!/第 2 次/.test(info.playLabel)) problems.push('播过一次之后按钮应该变成「再听一遍」：' + info.playLabel);
+  if (!info.gistShown) problems.push('点「对一下大意」没有显示大意');
+  if (info.step1 !== 'dictate') problems.push('应该进入逐句听写，实际 ' + info.step1);
+  if (info.diffBlocks !== total) problems.push('逐句对照应该有 ' + total + ' 段，实际 ' + info.diffBlocks);
+  if (!(info.diffMiss > 0)) problems.push('留空的句子应该判出没听出来的词');
+  if (!(info.classifyRows > 0)) problems.push('没有可以分类的词');
+  if (!info.funcLine) problems.push('没有把漏掉的虚词单独列出来');
+  if (info.label0 !== 'true' || info.label1 !== 'true') problems.push('分类按钮点了没有选中');
+  if (info.step3 !== 'shadow') problems.push('应该进入跟读，实际 ' + info.step3);
+  if (info.step4 !== 'done') problems.push('跟完应该进小结，实际 ' + info.step4);
+  if (info.rounds !== 1) problems.push('做完一篇 rounds 应该是 1，实际 ' + info.rounds);
+  if (!info.dueTomorrow) problems.push('做完应该排到明天重听');
+  if (info.savedLabels[0] !== 'recog' || (word1 && info.savedLabels[1] !== 'unknown')) {
+    problems.push('分类没有存进存储：' + JSON.stringify(info.savedLabels));
+  }
+  if (info.listenDone !== 1) problems.push('今天精听完成数应该是 1，实际 ' + info.listenDone);
+  if (!info.doneShowsClasses) problems.push('小结里没有把两类分开显示');
+  return { info, problems };
+})()`
+
+const LISTEN_RELISTEN_TEST = `(async () => {
+  const problems = [];
+  const info = {};
+  const SRS = window.CET4_SRS;
+  const key = SRS.dateKey();
+  ${TTS_STUB}
+  const step = () => document.querySelector('[data-step]').getAttribute('data-step');
+
+  info.step0 = step();
+  info.hasPass = Boolean(document.querySelector('[data-pass]'));
+  info.hasFail = Boolean(document.querySelector('[data-fail]'));
+  info.saysEighty = /八成/.test(document.body.innerText);
+
+  document.querySelector('[data-play-all]').click();
+  await wait(600);
+  document.querySelector('[data-pass]').click();
+  info.step1 = step();
+
+  const store = JSON.parse(localStorage.getItem('cet4.v1'));
+  const rec = store.listen.clips['pass-01'];
+  info.rounds = rec.rounds;
+  info.dueIn4 = rec.due === SRS.addDays(key, 4);
+  info.listenDone = store.days[key].listenDone;
+
+  if (info.step0 !== 'blind') problems.push('重听应该从盲听开始，实际 ' + info.step0);
+  if (!info.hasPass || !info.hasFail) problems.push('重听页面缺「听懂了 / 还不行」两个按钮');
+  if (!info.saysEighty) problems.push('没有说明「听懂八成就算过」');
+  if (info.step1 !== 'done') problems.push('点「听懂了」之后应该进小结，实际 ' + info.step1);
+  if (info.rounds !== 2) problems.push('重听一次之后 rounds 应该是 2，实际 ' + info.rounds);
+  if (!info.dueIn4) problems.push('听懂了之后应该排到 4 天后');
+  if (info.listenDone !== 1) problems.push('重听也该算今天的精听，实际 ' + info.listenDone);
+  return { info, problems };
+})()`
+
 // ---------- 进度页 ----------
 
 const PROGRESS_TEST = `(() => {
@@ -642,6 +857,10 @@ const PROGRESS_TEST = `(() => {
   const book = document.querySelector('[data-book]');
   info.bookRows = book ? Number(book.getAttribute('data-book')) : 0;
   info.bookHeading = /错词本 · ${FACTS.studyBook} 个/.test(document.body.innerText);
+  info.listenHeading = /精听 · 做过 ${FACTS.listenClipsDone} \\/ 9 篇/.test(document.body.innerText);
+  info.listenWordRows = document.querySelector('[data-listen-words]')
+    ? Number(document.querySelector('[data-listen-words]').getAttribute('data-listen-words'))
+    : 0;
 
   if (stats[0] !== '${FACTS.studyDayDone}') problems.push('连续天数应该是 ${FACTS.studyDayDone}，实际 ' + stats[0]);
   if (stats[1] !== '${FACTS.studyDayDone}') problems.push('最长记录应该是 ${FACTS.studyDayDone}，实际 ' + stats[1]);
@@ -651,6 +870,10 @@ const PROGRESS_TEST = `(() => {
   if (info.doneCells !== ${FACTS.studyDayDone}) problems.push('近日条里应该有 ${FACTS.studyDayDone} 个实心格，实际 ' + info.doneCells);
   if (info.bookRows !== ${FACTS.studyBook}) problems.push('错词本列表应该有 ${FACTS.studyBook} 行，实际 ' + info.bookRows);
   if (!info.bookHeading) problems.push('错词本标题里的数量不对');
+  if (!info.listenHeading) problems.push('精听那一段没写上「做过 ${FACTS.listenClipsDone} / 9 篇」');
+  if (info.listenWordRows !== ${FACTS.listenUnknown}) problems.push('听力生词应该有 ${FACTS.listenUnknown} 个，实际 ' + info.listenWordRows);
+  if (!/认识但没听出来/.test(document.body.innerText)) problems.push('进度页没有「认识但没听出来」这一类');
+  if (!/不显示正确率|不是听写正确率/.test(document.body.innerText)) problems.push('进度页没说明为什么不显示正确率');
   return { info, problems };
 })()`
 
@@ -658,6 +881,9 @@ const TESTS = {
   STUDY_NEW: STUDY_NEW_TEST,
   STUDY_REVIEW: STUDY_REVIEW_TEST,
   STUDY_BOOK: STUDY_BOOK_TEST,
+  LISTEN_LIST: LISTEN_LIST_TEST,
+  LISTEN_FLOW: LISTEN_FLOW_TEST,
+  LISTEN_RELISTEN: LISTEN_RELISTEN_TEST,
   PROGRESS: PROGRESS_TEST,
   PROBE: PROBE_TEST,
   PROBE_DONE: PROBE_DONE_TEST,
@@ -702,7 +928,7 @@ async function connect(target) {
 }
 
 async function evaluate(send, expression) {
-  const r = await send('Runtime.evaluate', { expression, returnByValue: true })
+  const r = await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true })
   if (r.exceptionDetails) {
     throw new Error('页面里报错：' + (r.exceptionDetails.exception?.description || r.exceptionDetails.text || '').split('\n')[0])
   }

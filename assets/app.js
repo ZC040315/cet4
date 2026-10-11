@@ -115,6 +115,7 @@
     rec.tier = mode.id;
     rec.newGoal = mode.newWords;
     rec.reviewGoal = Math.min(mode.reviewCap, window.CET4_SRS.countDue(state.srs || {}, coreWords(), key));
+    rec.listenGoal = mode.listen || 0;
     rec.done = window.CET4_SRS.dayDone(rec);
     return rec;
   }
@@ -159,6 +160,66 @@
 
   function dayNumber() {
     return window.CET4_SRS.diffDays(startKey(), todayKey()) + 1;
+  }
+
+  /* ---------- 精听 ---------- */
+
+  function listenTable() {
+    return window.CET4_LISTENING && window.CET4_LISTENING.clips && window.CET4_LISTENING.clips.length
+      ? window.CET4_LISTENING
+      : null;
+  }
+
+  function clips() {
+    var t = listenTable();
+    return t ? t.clips : [];
+  }
+
+  function clipById(id) {
+    var list = clips();
+    for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+    return null;
+  }
+
+  // 「认识但没听出来」和「不认识」两类，全站累计。两个数字都从每篇的逐词分类里算出来，
+  // 不单独存一份，免得两处对不上。
+  function listenTally(state) {
+    var clipsRec = (state && state.listen && state.listen.clips) || {};
+    var tally = { recognized: 0, unknown: 0, words: [] };
+    clips().forEach(function (clip) {
+      var rec = clipsRec[clip.id];
+      if (!rec || !rec.words) return;
+      Object.keys(rec.words).forEach(function (w) {
+        if (rec.words[w] === 'unknown') {
+          tally.unknown++;
+          tally.words.push({ w: w, clip: clip.id, clipType: clip.type });
+        } else if (rec.words[w] === 'recog') {
+          tally.recognized++;
+        }
+      });
+    });
+    return tally;
+  }
+
+  // 今天该重听的（做过、且到期）
+  function listenDue(state, key) {
+    var clipsRec = (state && state.listen && state.listen.clips) || {};
+    return clips().filter(function (clip) {
+      var rec = clipsRec[clip.id];
+      return Boolean(rec && rec.lastDone && rec.due && rec.due <= key);
+    });
+  }
+
+  // 生词的释义：在主干词和叶子词里查（都是 ECDICT 的原文，不自己编）
+  function wordGloss(word) {
+    var w = String(word || '').toLowerCase();
+    var tables = [window.CET4_WORDS_CORE, window.CET4_WORDS_LEAF];
+    for (var t = 0; t < tables.length; t++) {
+      var list = tables[t] && tables[t].words;
+      if (!list) continue;
+      for (var i = 0; i < list.length; i++) if (list[i].w === w) return list[i].zh;
+    }
+    return '';
   }
 
   /* ---------- 「每天该背多少」那段结论，首页和摸底结果页共用 ---------- */
@@ -303,6 +364,12 @@
     setTierToday: setTierToday,
     startKey: startKey,
     dayNumber: dayNumber,
+    listenTable: listenTable,
+    clips: clips,
+    clipById: clipById,
+    listenTally: listenTally,
+    listenDue: listenDue,
+    wordGloss: wordGloss,
     planHtml: planHtml,
     esc: esc,
     savePlan: savePlan,

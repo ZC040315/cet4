@@ -248,7 +248,11 @@
 
   function dayDone(state) {
     if (!state) return false;
-    return (state.newDone || 0) >= (state.newGoal || 0) && (state.reviewDone || 0) >= (state.reviewGoal || 0);
+    return (
+      (state.newDone || 0) >= (state.newGoal || 0) &&
+      (state.reviewDone || 0) >= (state.reviewGoal || 0) &&
+      (state.listenDone || 0) >= (state.listenGoal || 0)
+    );
   }
 
   window.CET4_SRS = {

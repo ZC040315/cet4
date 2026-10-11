@@ -46,6 +46,17 @@
       if (srs[k].due <= key) dueToday++;
     }
 
+    // 精听：做过几篇、两类各多少、今天该重听哪几篇
+    var allClips = A.clips();
+    var clipRec = (state.listen && state.listen.clips) || {};
+    var doneClips = allClips.filter(function (c) {
+      return clipRec[c.id] && clipRec[c.id].rounds;
+    });
+    var tally = A.listenTally(state);
+    var listened = tally.recognized + tally.unknown;
+    var recogPct = listened ? Math.round((tally.recognized / listened) * 100) : 0;
+    var dueClips = A.listenDue(state, key);
+
     // 最近 14 天：完成的实心、做了一部分的对半、没动的空着
     var strip = [];
     for (var i = STRIP_DAYS - 1; i >= 0; i--) {
@@ -84,6 +95,41 @@
         '<h2>最近 ' + STRIP_DAYS + ' 天</h2>' +
         '<div class="days-strip" data-strip>' + strip.join('') + '</div>' +
         '<p class="faint">实心 = 当天做完；半格 = 做了一部分；空格 = 没碰。从 ' + start + ' 开始算。</p>' +
+      '</div>' +
+      '<div class="card">' +
+        '<h2>精听 · 做过 ' + doneClips.length + ' / ' + allClips.length + ' 篇</h2>' +
+        (listened
+          ? '<div class="stats">' +
+            '<div class="stat"><b class="num">' + tally.recognized + '</b><span>认识但没听出来</span></div>' +
+            '<div class="stat"><b class="num">' + tally.unknown + '</b><span>压根不认识</span></div>' +
+            '<div class="stat"><b class="num">' + recogPct + '%</b><span>「认识但没听出来」占的比例</span></div>' +
+            '</div>' +
+            '<p class="faint">判断标准不是听写正确率，是这个比例在不在下降 —— 它比正确率先动。' +
+            '所以这个页面不显示正确率。</p>'
+          : '<p class="muted">还没做过精听。<a href="listening.html">从这里开始</a>，一段大约 25 分钟。</p>') +
+        (dueClips.length
+          ? '<div class="btn-row"><a class="btn btn--primary" href="listening.html?clip=' + dueClips[0].id +
+            '&mode=relisten">今天该重听 ' + dueClips.length + ' 篇</a></div>'
+          : (doneClips.length ? '<p class="faint">今天没有要重听的。</p>' : '')) +
+        (tally.words.length
+          ? '<ul class="rows" data-listen-words="' + tally.words.length + '" style="margin-top:14px">' +
+            tally.words
+              .slice(0, 30)
+              .map(function (x) {
+                var zh = A.wordGloss(x.w);
+                return '<li class="row">' +
+                  '<span class="row-word">' + A.esc(x.w) + '</span>' +
+                  '<span class="row-body"><span class="row-zh">' + (zh ? A.esc(zh.slice(0, 46)) : '（词表里没有，自己查一下）') + '</span></span>' +
+                  '<span class="row-mark" data-m="0">' +
+                  A.esc({ passage: '篇章', conversation: '对话', news: '新闻' }[x.clipType] || '精听') +
+                  '</span>' +
+                  '</li>';
+              })
+              .join('') +
+            '</ul>' +
+            '<p class="faint">这些是你在精听里标「压根不认识」的词（最多列 30 个）。' +
+            (tally.words.length > 30 ? '一共 ' + tally.words.length + ' 个。' : '') + '</p>'
+          : '') +
       '</div>' +
       '<div class="card">' +
         '<h2>错词本 · ' + book.length + ' 个</h2>' +

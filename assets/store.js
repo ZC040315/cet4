@@ -9,6 +9,7 @@
      plan:  { unknown, daysLeft, recommended, ... } | null,
      srs:   { word: { box, due, seen, ok, wrong, streakOk, inBook, first, last } },
      days:  { "2026-10-11": { tier, newGoal, newDone, reviewGoal, reviewDone, done, ms } },
+     listen:{ clips: { "news-01": { rounds, lastDone, due, replays, blindPlays, words: { word: "recog"|"unknown" } } } },
      settings: { theme: "light" | "dark", tier: "std" }
    }
 
@@ -19,7 +20,15 @@
   var KEY = 'cet4.v1';
 
   function blank() {
-    return { probe: {}, plan: null, srs: {}, days: {}, settings: { theme: '', tier: '' }, updatedAt: null };
+    return {
+      probe: {},
+      plan: null,
+      srs: {},
+      days: {},
+      listen: { clips: {} },
+      settings: { theme: '', tier: '', rate: 0.8, voice: '' },
+      updatedAt: null,
+    };
   }
 
   function read() {
@@ -33,7 +42,13 @@
       out.plan = data.plan || null;
       out.srs = data.srs && typeof data.srs === 'object' ? data.srs : {};
       out.days = data.days && typeof data.days === 'object' ? data.days : {};
-      out.settings = data.settings && typeof data.settings === 'object' ? data.settings : { theme: '', tier: '' };
+      out.listen = data.listen && typeof data.listen === 'object' ? data.listen : { clips: {} };
+      if (!out.listen.clips || typeof out.listen.clips !== 'object') out.listen.clips = {};
+      out.settings = data.settings && typeof data.settings === 'object' ? data.settings : {};
+      if (out.settings.theme === undefined) out.settings.theme = '';
+      if (out.settings.tier === undefined) out.settings.tier = '';
+      if (!Number(out.settings.rate)) out.settings.rate = 0.8;
+      if (out.settings.voice === undefined) out.settings.voice = '';
       out.updatedAt = data.updatedAt || null;
       return out;
     } catch (e) {
@@ -98,13 +113,44 @@
     if (!state.days || typeof state.days !== 'object') state.days = {};
     var rec = state.days[key];
     if (!rec || typeof rec !== 'object') {
-      rec = { tier: '', newGoal: 0, newDone: 0, reviewGoal: 0, reviewDone: 0, done: false, ms: 0 };
+      rec = {
+        tier: '',
+        newGoal: 0,
+        newDone: 0,
+        reviewGoal: 0,
+        reviewDone: 0,
+        listenGoal: 0,
+        listenDone: 0,
+        realAudio: false,
+        done: false,
+        ms: 0,
+      };
       state.days[key] = rec;
     }
     rec.newDone = Number(rec.newDone) || 0;
     rec.reviewDone = Number(rec.reviewDone) || 0;
+    rec.listenGoal = Number(rec.listenGoal) || 0;
+    rec.listenDone = Number(rec.listenDone) || 0;
+    rec.realAudio = Boolean(rec.realAudio);
     rec.ms = Number(rec.ms) || 0;
     rec.done = Boolean(rec.done);
+    return rec;
+  }
+
+  /* ---------- 精听：每一篇的记录 ---------- */
+
+  function clip(state, id) {
+    if (!state.listen || typeof state.listen !== 'object') state.listen = { clips: {} };
+    if (!state.listen.clips || typeof state.listen.clips !== 'object') state.listen.clips = {};
+    var rec = state.listen.clips[id];
+    if (!rec || typeof rec !== 'object') {
+      rec = { rounds: 0, lastDone: '', due: '', replays: 0, blindPlays: 0, words: {} };
+      state.listen.clips[id] = rec;
+    }
+    rec.rounds = Number(rec.rounds) || 0;
+    rec.replays = Number(rec.replays) || 0;
+    rec.blindPlays = Number(rec.blindPlays) || 0;
+    if (!rec.words || typeof rec.words !== 'object') rec.words = {};
     return rec;
   }
 
@@ -143,6 +189,7 @@
     layer: layer,
     day: day,
     entry: entry,
+    clip: clip,
     counts: counts,
     exportJson: exportJson,
     importJson: importJson,

@@ -353,6 +353,47 @@ footer.site p { margin: 0 0 10px; }
 
 /* ---------- 进度页的近日条 ---------- */
 
+/* ---------- 精听页 ---------- */
+
+.notice {
+  background: var(--surface-2);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin: 0 0 18px;
+  font-size: 15px;
+  color: var(--text-muted);
+}
+
+.clip-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.clip-head b { font-size: 18px; }
+
+.writebox {
+  width: 100%;
+  min-height: 88px;
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 17px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.diff-block { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.diff-block:last-child { border-bottom: 0; }
+.diff-line { margin: 0; font-size: 17px; }
+.diff-mine { margin: 4px 0 0; font-size: 15px; color: var(--text-muted); }
+.diff-miss { color: var(--no); font-weight: 600; }
+
+.classify { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.classify:last-of-type { border-bottom: 0; }
+.classify-word { margin-bottom: 8px; font-size: 18px; }
+
+.days-strip { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+
 .days-strip { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
 
 .day-cell {
