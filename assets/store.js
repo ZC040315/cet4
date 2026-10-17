@@ -11,7 +11,7 @@
      days:  { "2026-10-11": { tier, newGoal, newDone, reviewGoal, reviewDone, done, ms } },
      listen:{ clips: { "news-01": { rounds, lastDone, due, replays, blindPlays, words: { word: "recog"|"unknown" } } } },
      readings: { "read-01": { rounds, lastDone, ms } },
-     settings: { theme: "light" | "dark", tier: "std" }
+     settings: { theme: "light" | "dark", tier: "std", rate: 0.8, voice: "", listenText: "shown" | "hidden" | "" }
    }
 
    说明：answers 用单词本身当键，不用下标 —— 这样以后词表加词、重新排序，
@@ -28,7 +28,7 @@
       days: {},
       listen: { clips: {} },
       readings: {},
-      settings: { theme: '', tier: '', rate: 0.8, voice: '' },
+      settings: { theme: '', tier: '', rate: 0.8, voice: '', listenText: '' },
       updatedAt: null,
     };
   }
@@ -52,6 +52,9 @@
       if (out.settings.tier === undefined) out.settings.tier = '';
       if (!Number(out.settings.rate)) out.settings.rate = 0.8;
       if (out.settings.voice === undefined) out.settings.voice = '';
+      // 精听里「显示原文」这个开关记在这儿：'shown' 显示、'hidden' 藏起、'' 还没选过。
+      // 不记在 listen.clips 里，因为它管的是看图习惯，不是某一篇的进度。
+      if (out.settings.listenText !== 'shown' && out.settings.listenText !== 'hidden') out.settings.listenText = '';
       out.updatedAt = data.updatedAt || null;
       return out;
     } catch (e) {

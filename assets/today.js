@@ -124,7 +124,7 @@
     var listenSub;
     if (day.listenGoal === 0) listenSub = '';
     else if (listenDue) listenSub = '今天该重听 ' + listenDue + ' 篇（不写，只听，听懂八成就算过）· 约 3 分钟';
-    else listenSub = '一段自产短文，五步约 25 分钟' + (mode.realAudio ? '' : '');
+    else listenSub = '一段自产短文，五步约 25 分钟 · 听不清可以开原文';
     var listenRow =
       day.listenGoal === 0
         ? ''

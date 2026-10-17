@@ -388,6 +388,51 @@ footer.site p { margin: 0 0 10px; }
 .diff-mine { margin: 4px 0 0; font-size: 15px; color: var(--text-muted); }
 .diff-miss { color: var(--no); font-weight: 600; }
 
+/* 对照页每句右边的「听这句」：看完字立刻听一遍，是这个站最缺的一口气 */
+.diff-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.diff-head .diff-line { flex: 1 1 auto; }
+.diff-head .btn { flex: 0 0 auto; white-space: nowrap; }
+
+/* ---------- 精听 · 原文（听读同步） ---------- */
+
+.listen-text { border-left: 3px solid var(--accent); }
+
+.say-list { list-style: none; margin: 10px 0 0; padding: 0; }
+
+.say-row {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  width: 100%;
+  text-align: left;
+  padding: 9px 8px;
+  border-bottom: 1px solid var(--line);
+  border-left: 3px solid transparent;
+  border-radius: 0;
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.say-row:last-child { border-bottom: 0; }
+.say-row:hover { background: var(--surface-2); }
+.say-no {
+  flex: 0 0 auto;
+  min-width: 1.5em;
+  /* 高亮那一句的底是 --surface-2：--text-faint 在那上面只有 4.3:1，改用 --text-muted（5.6:1） */
+  color: var(--text-muted);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.say-text { flex: 1 1 auto; min-width: 0; }
+.say-play { flex: 0 0 auto; color: var(--text-muted); font-size: 13px; }
+.say-list .say-row.is-now { background: var(--surface-2); border-left-color: var(--accent); font-weight: 600; }
+
+/* 听写时露出来的「这一句原文」 */
+.listen-now { border-top: 1px dashed var(--line); margin-top: 16px; padding-top: 12px; }
+.listen-now-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.listen-now-text { font-size: 19px; line-height: 1.55; margin: 6px 0 0; color: var(--text); }
+
 .classify { padding: 12px 0; border-bottom: 1px solid var(--line); }
 .classify:last-of-type { border-bottom: 0; }
 .classify-word { margin-bottom: 8px; font-size: 18px; }

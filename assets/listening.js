@@ -7,7 +7,23 @@
      「认识但没听出来」 → 音义映射断了，最好修
      「压根不认识」    → 单词问题，进生词本
    这两类的比例就是进度表 —— 判断标准不是正确率，是这个比例在不在下降。
-   所以这个页面**不显示听写正确率**，只显示两类的个数。 */
+   所以这个页面**不显示听写正确率**，只显示两类的个数。
+
+   ---------- 原文开关（补） ----------
+
+   第 1、2 步原本一个字都不给看。对听力底子薄的人，那等于「一句话也听不出来」，
+   于是整段流程只剩挫败感 —— 这是真实的失败模式，不是懒。
+
+   所以原文做成了一个显式开关，盲听和听写两步都能打开：整篇原文（当前句高亮、点一句听一句），
+   或者听写时只看这一句。它有三条规矩，免得变成自欺：
+
+     1. **选择会被记住**（settings.listenText）。开了就一直是开的，不用每篇找按钮；
+        想练盲听，点一次「藏起原文」。
+     2. **开着原文的听写会记账**：第 3 步会写明「这一轮是边听边抄，别当听力成绩」，
+        或者点名哪几句点开过原文。看多少，你自己知道。
+     3. **原文不替代对照分类**：第 3 步还是那个最值钱的步骤，一个字没少。
+
+   一句话：先让耳朵有东西可抓，再把拐杖扔掉。扔之前，拐杖上得写着「这是拐杖」。 */
 
 (function () {
   var A = window.CET4_APP;
@@ -30,7 +46,12 @@
     plays: {},
     blindPlays: 0,
     gistShown: false,
-    textShown: false,
+    // 原文：showText 是「现在显示吗」，初值来自上次的选择；peeked 是听写时单独点开过的句子
+    showText: (S.read().settings || {}).listenText === 'shown',
+    peeked: {},
+    dictText: false,
+    nowAt: -1,
+    replays: 0,
     labels: {},
     content: [],
     funcWords: [],
@@ -66,10 +87,19 @@
     return A.todayKey();
   }
 
+  /* 原文开关：改一次记一次，下次进来还是这个选择 */
+  function setTextPref(on) {
+    S.patch(function (state) {
+      if (!state.settings) state.settings = {};
+      state.settings.listenText = on ? 'shown' : 'hidden';
+    });
+  }
+
   function stop() {
     if (ST.handle && ST.handle.cancel) ST.handle.cancel();
     TTS.cancel();
     ST.playing = false;
+    ST.nowAt = -1;
     ST.handle = null;
   }
 
@@ -82,20 +112,56 @@
     ST.blindPlays += 1;
     ST.playing = true;
     ST.playAt = 0;
+    ST.nowAt = -1;
     render();
     ST.handle = TTS.speakAll(c.sentences, {
       rate: rate(),
       gap: 420,
       onProgress: function (i) {
         ST.playAt = i;
+        ST.nowAt = i;
         var el = main.querySelector('[data-play-status]');
         if (el) el.textContent = '正在播放第 ' + (i + 1) + ' / ' + c.sentences.length + ' 句…';
+        markNow(i);
       },
       onend: function () {
         ST.playing = false;
+        ST.nowAt = -1;
         render();
       },
     });
+  }
+
+  /* 原文列表里高亮「现在读到哪一句」。整篇连读时逐句走，单句播放时停在那一句。 */
+  function markNow(i) {
+    var rows = main.querySelectorAll('.say-row');
+    for (var k = 0; k < rows.length; k++) {
+      var on = Number(rows[k].getAttribute('data-say')) === i;
+      if (on) rows[k].classList.add('is-now');
+      else rows[k].classList.remove('is-now');
+      if (on) {
+        try {
+          rows[k].scrollIntoView({ block: 'nearest' });
+        } catch (e) {
+          /* 老浏览器不认参数版，忽略：不滚动也能听 */
+        }
+      }
+    }
+  }
+
+  // 点原文里的某一句：只读这一句。算一次「倒回重听」（进进度页的 replays），
+  // 但**不**占用听写那 3 次播放额度 —— 额度是听写这一步的规矩，不是原文的。
+  function saySentence(i) {
+    var c = clip();
+    if (!c || !TTS.supported) return;
+    ST.replays += 1;
+    // 单句也要把状态条上的「第几句」对上，不然会停在上一句
+    ST.playAt = i;
+    playOne(c.sentences[i], function () {
+      ST.nowAt = -1;
+    });
+    ST.nowAt = i;
+    markNow(i);
   }
 
   function playOne(text, onDone) {
@@ -173,6 +239,8 @@
     main.innerHTML =
       '<h1>精听</h1>' +
       '<p class="lede">一段自产短文 + 浏览器朗读。五步，约 25 分钟：盲听 → 逐句听写 → 对照原文 → 跟读 → 第二天重听。</p>' +
+      '<p class="faint">听不清的时候，盲听和听写这两步都能点「显示原文」：先看一遍、再听，把字和声音对上。' +
+      '这个开关点一次就记住。</p>' +
       notice +
       (due.length
         ? '<div class="card card--tight"><b>今天该重听 ' + due.length + ' 篇</b>' +
@@ -250,6 +318,38 @@
     );
   }
 
+  /* 整篇原文：一句一行，点哪句听哪句，整篇连读时高亮跟读。
+     这是「听读同步」的那块板子 —— 听不懂的人靠它把声音和字对上。 */
+  function textPanel(c, note) {
+    var rows = c.sentences
+      .map(function (s, i) {
+        return (
+          '<li><button class="say-row' + (ST.nowAt === i ? ' is-now' : '') + '" type="button" data-say="' + i + '">' +
+          '<span class="say-no">' + (i + 1) + '</span>' +
+          '<span class="say-text">' + A.esc(s) + '</span>' +
+          '<span class="say-play">▶</span>' +
+          '</button></li>'
+        );
+      })
+      .join('');
+    return (
+      '<div class="card card--tight listen-text" data-text-panel>' +
+      '<div class="clip-head"><b>原文</b><span class="faint">点任意一句，只听这一句</span></div>' +
+      '<ol class="say-list">' + rows + '</ol>' +
+      '<p class="faint" style="margin:10px 0 0">' +
+      (note || '先看着字听一遍，再把原文藏起来听 —— 把声音和字对上，比硬猜有用。') +
+      '</p>' +
+      '</div>'
+    );
+  }
+
+  function textToggleBtn(small) {
+    return (
+      '<button class="btn' + (small ? ' btn--sm' : '') + '" type="button" data-toggle-text aria-pressed="' +
+      ST.showText + '">' + (ST.showText ? '藏起原文' : '显示原文') + '</button>'
+    );
+  }
+
   function renderBlind() {
     var c = clip();
     var playLabel = ST.blindPlays ? '再听一遍（第 ' + (ST.blindPlays + 1) + ' 次）' : '▶ 播放整篇';
@@ -263,21 +363,35 @@
         ? '<button class="btn btn--primary btn--huge" type="button" data-play-all>' + (ST.playing ? '正在播放…' : playLabel) + '</button>'
         : '') +
       (ST.playing ? '<button class="btn" type="button" data-stop>停止</button>' : '') +
+      textToggleBtn(false) +
       '</div>' +
       '<p class="faint" data-play-status>' +
       (ST.playing
         ? '正在播放第 ' + (ST.playAt + 1) + ' / ' + c.sentences.length + ' 句…'
+        : ST.relisten
+        ? '不写，只听。能听懂八成就算过。'
         : '建议只播 1–2 遍。听不懂的地方先放下，第 2 步会逐句挖出来。') +
       '</p>' +
       ttsNotice();
 
+    if (ST.showText) {
+      body += textPanel(
+        c,
+        '这个选择已经记住了，下次进精听直接显示原文。想练盲听就点「藏起原文」——' +
+          '同一篇隔几天再听一遍，能听懂的会更多。'
+      );
+    } else {
+      body +=
+        '<p class="faint">' +
+        (ST.relisten
+          ? '听不清就点「显示原文」看一眼，再藏起来重听。'
+          : '一句话都听不出来？点「显示原文」：先看一遍，再对着声音看一遍。看清了再听，比硬猜一小时有用。') +
+        '</p>';
+    }
+
     if (ST.relisten) {
-      if (ST.textShown) {
-        body += '<div class="study-answer">' + A.esc(c.sentences.join(' ')) + '</div>';
-      }
       body +=
         '<div class="btn-row">' +
-        (ST.textShown ? '' : '<button class="btn btn--sm btn--ghost" type="button" data-show-text>实在不行，看原文</button>') +
         '<button class="btn btn--ok btn--huge" type="button" data-pass>听懂了（八成以上）</button>' +
         '<button class="btn btn--no" type="button" data-fail>还不行，明天再来</button>' +
         '</div>';
@@ -302,6 +416,24 @@
     var played = ST.plays[i] || 0;
     var canPlay = TTS.supported && played < MAX_PLAYS;
     var playLabel = played === 0 ? '▶ 播放这一句' : '再听一次（第 ' + (played + 1) + ' 次）';
+    // 开着原文，或者这一句已经点开过原文，就把这一句的字摆出来
+    var shown = ST.showText || Boolean(ST.peeked[i]);
+    var textBlock = '';
+    if (shown) {
+      textBlock =
+        '<div class="listen-now">' +
+        '<div class="listen-now-head"><span class="faint">第 ' + (i + 1) + ' 句原文</span>' +
+        (ST.showText
+          ? '<button class="btn btn--sm btn--ghost" type="button" data-toggle-text>藏起原文</button>'
+          : '<button class="btn btn--sm btn--ghost" type="button" data-hide-now>收起来</button>') +
+        '</div>' +
+        '<p class="listen-now-text">' + A.esc(c.sentences[i]) + '</p>' +
+        (ST.showText
+          ? '<p class="faint" style="margin:6px 0 0">开着原文时，这一步就是「边听边抄」：' +
+            '跟着声音把字打一遍，也算过一遍耳朵。想真听写，先藏起原文。</p>'
+          : '') +
+        '</div>';
+    }
     return (
       '<div class="card">' +
       '<p class="muted">听到什么写什么。<b>听不出的地方打一个 ?</b>，不要倒回去反复听 —— 那些圈就是你耳朵的病灶。</p>' +
@@ -311,11 +443,15 @@
         ? '<button class="btn ' + (played ? '' : 'btn--primary btn--huge') + '" type="button" data-play-one>' + playLabel + '</button>'
         : '<span class="faint">这一句已经放过 ' + played + ' 次，别再听了。</span>') +
       '</div>' +
+      textBlock +
       '<textarea class="writebox" data-typed rows="3" placeholder="第 ' + (i + 1) + ' 句听到的内容…">' +
       A.esc(ST.typed[i] || '') +
       '</textarea>' +
       '<div class="btn-row">' +
       (i > 0 ? '<button class="btn btn--sm btn--ghost" type="button" data-prev>上一句</button>' : '') +
+      (shown
+        ? ''
+        : '<button class="btn btn--sm" type="button" data-peek>看这一句原文</button>') +
       (i < c.sentences.length - 1
         ? '<button class="btn btn--primary btn--huge" type="button" data-next>下一句</button>'
         : '<button class="btn btn--primary btn--huge" type="button" data-to-compare>对照原文</button>') +
@@ -356,10 +492,19 @@
         var mineLine = mine.trim()
           ? '<p class="diff-mine">我写的：' + A.esc(mine) + ' ' + extra + '</p>'
           : '<p class="diff-mine faint">我写的：（这一句空着）</p>';
+        var say = TTS.supported
+          ? '<button class="btn btn--sm btn--ghost" type="button" data-say="' + i + '">▶ 听这句</button>'
+          : '';
+        // 听写时点开过原文的句子，这里标一下：那一句的对照不算数
+        var peekTag = !ST.dictText && ST.peeked[i] ? ' <span class="faint">（这句看过原文）</span>' : '';
         return (
           '<div class="diff-block">' +
+          '<div class="diff-head">' +
           '<p class="diff-line">' + markedHtml(s, r.marks) + '</p>' +
+          say +
+          '</div>' +
           mineLine +
+          peekTag +
           '</div>'
         );
       })
@@ -387,10 +532,33 @@
           .join('')
       : '<p class="muted">没漏掉任何实词。这一段对你太简单了，换难一点的。</p>';
 
+    // 原文用在了哪儿，这里如实说：不作弊，也不假装这一轮和盲听一样硬
+    var peekNote = '';
+    if (ST.dictText) {
+      peekNote =
+        '<p class="faint">这一轮听写一直开着原文（边听边抄），所以下面的「没听出来」只当练手，' +
+        '别当这一轮的听力成绩。下次把原文藏起来再走一遍，才算真的在练耳朵。</p>';
+    } else {
+      var peekedList = Object.keys(ST.peeked).filter(function (k) {
+        return ST.peeked[k];
+      });
+      if (peekedList.length) {
+        peekNote =
+          '<p class="faint">第 ' +
+          peekedList
+            .map(function (k) {
+              return Number(k) + 1;
+            })
+            .join('、') +
+          ' 句你点开过原文，那几句的对照不算数 —— 剩下的才是这一轮真实听出来的。</p>';
+      }
+    }
+
     return (
       '<div class="card">' +
       '<h2>逐句对照</h2>' +
       '<p class="faint">红色 = 没听出来的词。对照原文是整件事里最值钱的一步，别跳。</p>' +
+      peekNote +
       lines +
       '</div>' +
       '<div class="card">' +
@@ -515,7 +683,7 @@
       rec.rounds += 1;
       rec.lastDone = key;
       rec.blindPlays += ST.blindPlays;
-      var replays = 0;
+      var replays = ST.replays || 0;
       Object.keys(ST.plays).forEach(function (k) {
         replays += Math.max(0, (ST.plays[k] || 0) - 1);
       });
@@ -537,7 +705,7 @@
   /* ---------- 事件 ---------- */
 
   main.addEventListener('click', function (ev) {
-    var t = ev.target.closest ? ev.target.closest('[data-rate],[data-play-all],[data-stop],[data-gist],[data-next-step],[data-play-one],[data-next],[data-prev],[data-to-compare],[data-label-idx],[data-label-rest],[data-to-shadow],[data-show-text],[data-pass],[data-fail],[data-finish]') : null;
+    var t = ev.target.closest ? ev.target.closest('[data-rate],[data-play-all],[data-stop],[data-gist],[data-next-step],[data-play-one],[data-next],[data-prev],[data-to-compare],[data-label-idx],[data-label-rest],[data-to-shadow],[data-toggle-text],[data-peek],[data-hide-now],[data-say],[data-pass],[data-fail],[data-finish]') : null;
     if (!t) return;
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
 
@@ -560,14 +728,36 @@
       render();
       return;
     }
-    if (t.hasAttribute('data-show-text')) {
-      ST.textShown = true;
+    // 原文开关：点一次，记一次。盲听和听写两步共用这一个开关。
+    if (t.hasAttribute('data-toggle-text')) {
+      ST.showText = !ST.showText;
+      setTextPref(ST.showText);
+      // 听写中途打开原文，也算「边听边抄」：第 3 步要如实说
+      if (ST.showText && ST.step === 'dictate') ST.dictText = true;
       render();
+      return;
+    }
+    // 听写时单独看这一句：算「点开过原文」，第 3 步会点名
+    if (t.hasAttribute('data-peek')) {
+      ST.peeked[ST.index] = true;
+      render();
+      return;
+    }
+    if (t.hasAttribute('data-hide-now')) {
+      ST.peeked[ST.index] = false;
+      render();
+      return;
+    }
+    // 点原文里的某一句（盲听原文列表、对照页的「听这句」）
+    if (t.hasAttribute('data-say')) {
+      saySentence(Number(t.getAttribute('data-say')));
       return;
     }
     if (t.hasAttribute('data-next-step')) {
       ST.step = 'dictate';
       ST.index = 0;
+      // 开着原文进听写 = 边听边抄，第 3 步要如实说出来
+      ST.dictText = ST.showText;
       render();
       return;
     }
@@ -596,6 +786,7 @@
     if (t.hasAttribute('data-to-compare')) {
       var b2 = main.querySelector('[data-typed]');
       if (b2) ST.typed[ST.index] = b2.value;
+      if (ST.showText) ST.dictText = true;
       ST.step = 'compare';
       render();
       window.scrollTo(0, 0);
