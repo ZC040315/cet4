@@ -12,7 +12,10 @@
   --surface-2: #F2F2EE;
   --text: #16181C;
   --text-muted: #5B636E;
-  --text-faint: #8B929C;
+  /* #8B929C 在 #FAFAF7 上只有 3.0:1，而这一档用在页脚说明、音标、日历这些 12–14px 的小字上，
+     低于 WCAG AA 的 4.5:1。压深到 #6A7280 约 4.6:1（白卡片上 4.9:1），
+     仍然是三档里最淡的那一档，但能读清了。 */
+  --text-faint: #6A7280;
   --line: #E2E4E8;
   --line-strong: #C6CAD2;
   --accent: #1B4FD8;
@@ -34,7 +37,8 @@
   --surface-2: #23272E;
   --text: #ECEEF2;
   --text-muted: #A5ACB7;
-  --text-faint: #7C838E;
+  /* 深色下反过来要提亮：#7C838E 在卡片底 #1C1F25 上只有 4.3:1。 */
+  --text-faint: #8A91A0;
   --line: #2C3037;
   --line-strong: #3C4149;
   --accent: #7FA6FF;

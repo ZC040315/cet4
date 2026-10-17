@@ -18,7 +18,9 @@
    已经扫过的判断依然跟得住那个词。cursor 只是「扫到第几个」的断点。 */
 
 (function () {
-  var KEY = 'cet4.v1';
+  // 常量定义在 theme-boot.js 里（它是最早执行的脚本，必须在首绘前就知道主题）。
+  // 这里回退到字面量，是为了万一没引入那个脚本时存储层仍然可用。
+  var KEY = window.CET4_STORE_KEY || 'cet4.v1';
 
   function blank() {
     return {

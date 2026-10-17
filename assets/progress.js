@@ -93,7 +93,9 @@
           '<div class="stat"><b class="num">' + stat.current + '</b><span>连续天数</span></div>' +
           '<div class="stat"><b class="num">' + stat.longest + '</b><span>最长记录</span></div>' +
           '<div class="stat"><b class="num">' + rate + '%</b><span>完成率（' + stat.doneDays + '/' + elapsed + ' 天）</span></div>' +
-          '<div class="stat"><b class="num">' + P.daysLeft() + '</b><span>距考试（天）</span></div>' +
+          (P.isOver()
+            ? '<div class="stat"><b class="num">—</b><span>考试已结束</span></div>'
+            : '<div class="stat"><b class="num">' + P.daysLeft() + '</b><span>距考试（天）</span></div>') +
         '</div>' +
         '<p class="faint">断档不清零：中断了就当重新开始，最长记录一直留在这儿。</p>' +
       '</div>' +

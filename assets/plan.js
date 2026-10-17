@@ -5,15 +5,33 @@
 
    三个约定，写死在代码里，页面上也会原样显示，方便你自己核对：
      1. 考试日期 2026-12-12 上午 9:00（已核实，见规划书标题下方）；
+        下一届复用不必改代码：网址后面加 ?exam=2027-06-12（或完整 ISO）就能覆盖，
+        页面上的日期文案也从它推出来，不会和常量各写一份、改了一处漏一处；
      2. 摸底本身要占天数：一天最多扫 500 个（规划书第十一节）；
      3. 考前留 14 天给真题音频和写作翻译（规划书第三节：写作翻译考前两周再管），
         也就是背词要在考前 14 天收尾。 */
 
 (function () {
-  var EXAM_ISO = '2026-12-12T09:00:00+08:00';
+  var DEFAULT_EXAM_ISO = '2026-12-12T09:00:00+08:00';
   var SCAN_PER_DAY = 500;
   var RESERVE_DAYS = 14;
   var MIN_STUDY_DAYS = 7;
+
+  /* ?exam=2027-06-12 或 ?exam=2027-06-12T09:00:00+08:00 都能覆盖考试日期。
+     参数不合法就退回默认那一场 —— 宁可显示默认值，也不要因为网址手抖把整页算崩。 */
+  function resolveExamIso() {
+    var raw = '';
+    try {
+      raw = new URLSearchParams(window.location.search).get('exam') || '';
+    } catch (e) {
+      raw = '';
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw + 'T09:00:00+08:00';
+    if (raw && !isNaN(new Date(raw).getTime())) return raw;
+    return DEFAULT_EXAM_ISO;
+  }
+
+  var EXAM_ISO = resolveExamIso();
 
   /* 规划书第十一节的四档。这里的数字是从规划书那句校准话推出来的：
      「单词 25 分钟对应大约 20 个新词 + 50–60 个复习词」——
@@ -74,15 +92,37 @@
     return null;
   }
 
+  function examTime() {
+    return new Date(EXAM_ISO).getTime();
+  }
+
+  /* 考完没有。所有「每天该背多少」的算法都要先问这一句：
+     考完之后再拿剩余天数去摊，会算出「每天背 500 个新词」这种没人做得到的结论。 */
+  function isOver(now) {
+    return examTime() - (now ? now.getTime() : Date.now()) <= 0;
+  }
+
   function daysLeft(now) {
-    var exam = new Date(EXAM_ISO).getTime();
-    var t = (now ? now.getTime() : Date.now());
-    var diff = exam - t;
+    var diff = examTime() - (now ? now.getTime() : Date.now());
     return diff <= 0 ? 0 : Math.ceil(diff / 86400000);
   }
 
-  function dayLabel(n) {
-    return '2026 年 12 月 12 日（周六）上午 9:00';
+  /* 日期文案从 EXAM_ISO 推出来，不再手写第二遍。
+     星期用 UTC 构造日期来算，避免受本机时区影响；时间按 ISO 里写的那个时区显示。 */
+  function examDateShort() {
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(EXAM_ISO);
+    if (!m) return EXAM_ISO;
+    return m[1] + ' 年 ' + Number(m[2]) + ' 月 ' + Number(m[3]) + ' 日';
+  }
+
+  function examLabel() {
+    var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(EXAM_ISO);
+    if (!m) return EXAM_ISO;
+    var week = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+    var dow = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))).getUTCDay();
+    var hour = Number(m[4]);
+    var h12 = hour % 12 === 0 ? 12 : hour % 12;
+    return examDateShort() + '（' + week[dow] + '）' + (hour < 12 ? '上午 ' : '下午 ') + h12 + ':' + m[5];
   }
 
   /* planFor({ unknown, remainingScan, now })
@@ -93,6 +133,35 @@
     var unknown = Math.max(0, Math.round(input.unknown || 0));
     var remainingScan = Math.max(0, Math.round(input.remainingScan || 0));
     var left = daysLeft(input.now);
+
+    /* 考完了就不再排每日额度。这里返回一个结构完整、但 recommended = 0 的结果，
+       让渲染方（app.js 的 planHtml）只需判断 plan.over，不必各自重算一遍。 */
+    if (isOver(input.now)) {
+      return {
+        over: true,
+        unknown: unknown,
+        daysLeft: 0,
+        probeDaysLeft: Math.ceil(remainingScan / SCAN_PER_DAY),
+        remainingScan: remainingScan,
+        studyDays: 0,
+        shortened: false,
+        raw: 0,
+        recommended: 0,
+        exceedsMax: false,
+        modes: MODES.map(function (m) {
+          return {
+            id: m.id,
+            label: m.label,
+            newWords: m.newWords,
+            minutes: m.minutes,
+            note: m.note,
+            days: 0,
+            fits: false,
+            here: false,
+          };
+        }),
+      };
+    }
 
     var probeDaysLeft = Math.ceil(remainingScan / SCAN_PER_DAY);
     var studyDays = left - probeDaysLeft - RESERVE_DAYS;
@@ -129,6 +198,7 @@
     if (picked) picked.here = true;
 
     return {
+      over: false,
       unknown: unknown,
       daysLeft: left,
       probeDaysLeft: probeDaysLeft,
@@ -144,11 +214,14 @@
 
   window.CET4_PLAN = {
     EXAM_ISO: EXAM_ISO,
-    EXAM_LABEL: dayLabel(),
+    EXAM_LABEL: examLabel(),
+    EXAM_DATE_SHORT: examDateShort(),
     SCAN_PER_DAY: SCAN_PER_DAY,
     RESERVE_DAYS: RESERVE_DAYS,
     MODES: MODES,
     modeById: modeById,
+    examTime: examTime,
+    isOver: isOver,
     daysLeft: daysLeft,
     planFor: planFor,
   };

@@ -41,4 +41,17 @@
     },
     '全部清空了。导出的备份文件还在你手上，想找回来就导入它。'
   );
+
+  /* 页脚的考试日期跟着 plan.js 解析出来的结果走（支持 ?exam= 覆盖），
+     免得日期在代码和文案里各写一份。about.html 里的静态文案是兜底：
+     万一脚本没跑起来，也不会开天窗。 */
+  (function () {
+    var P = window.CET4_PLAN;
+    var el = document.querySelector('[data-exam-note]');
+    if (!P || !el) return;
+    el.textContent =
+      '考试日期：' + P.EXAM_LABEL + '。倒计时按本机时间算。' +
+      (P.isOver() ? '这一场已经结束。' : '') +
+      '要用在别的场次，在网址后面加 ?exam=2027-06-12 这样的日期即可。';
+  })();
 })();

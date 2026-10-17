@@ -55,11 +55,38 @@
     var left = P.daysLeft();
     var probe = A.summary();
 
+    /* 考完了：不再给「今天做几件」的清单。倒计时和每日额度都没有意义了，
+       但记录还在，所以只报一份小结 + 出口。 */
+    if (P.isOver()) {
+      var over = SRS.stats(S.read().days || {}, A.todayKey());
+      main.innerHTML =
+        '<h1>考完了</h1>' +
+        '<p class="lede">按本站记的考试日期（' + P.EXAM_DATE_SHORT + '）算，这一场已经结束，倒计时和每天的目标都不再排了。</p>' +
+        '<div class="card">' +
+          '<h2>这半年的记录</h2>' +
+          '<div class="stats">' +
+            '<div class="stat"><b class="num">' + probe.scanned + '</b><span>扫过的主干词</span></div>' +
+            '<div class="stat"><b class="num">' + probe.unknown + '</b><span>其中不认识</span></div>' +
+            '<div class="stat"><b class="num">' + over.current + '</b><span>当前连续</span></div>' +
+            '<div class="stat"><b class="num">' + over.longest + '</b><span>最长连续</span></div>' +
+          '</div>' +
+          '<p class="faint">记录只在本机，没有账号也不上传。想留着就到<a href="about.html">说明</a>页导出成 JSON。</p>' +
+          '<div class="btn-row">' +
+            '<a class="btn" href="progress.html">看完整进度</a>' +
+            '<a class="btn" href="about.html">导出备份</a>' +
+          '</div>' +
+        '</div>' +
+        '<p class="faint">还想接着练也可以：<a href="words.html">词表</a>、<a href="listening.html">精听</a>、' +
+        '<a href="reading.html">短读</a>都还能用，只是不再有每日额度。要用在下一场，在网址后面加 ' +
+        '<code style="white-space:nowrap">?exam=2027-06-12</code> 这样的日期即可。</p>';
+      return;
+    }
+
     if (!probe.done) {
       var pct = probe.total ? Math.round((probe.scanned / probe.total) * 100) : 0;
       var startLabel = probe.scanned > 0 ? '继续摸底' : '开始摸底';
       main.innerHTML =
-        '<h1>距 2026 年 12 月 12 日还有 <span class="num">' + left + '</span> 天</h1>' +
+        '<h1>距 ' + P.EXAM_DATE_SHORT + '还有 <span class="num">' + left + '</span> 天</h1>' +
         '<p class="lede">前三天不背单词，先摸底：只判断「认识 / 不认识」。扫完才知道每天该背多少。</p>' +
         '<div class="card">' +
           '<h2>摸底 · 主干词</h2>' +

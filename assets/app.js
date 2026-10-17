@@ -285,6 +285,17 @@
   }
 
   function planHtml(plan) {
+    // 考完了就不再给每日额度：一张说明卡，代替整张档位表和各种「每天 N 个」的算式
+    if (plan.over) {
+      return (
+        '<div class="card">' +
+        '<h2>这一场已经结束了</h2>' +
+        '<p class="muted">按本站记的考试日期（' + esc(P.EXAM_LABEL) + '）算，现在再排「每天背多少」已经没有意义，所以这里不再给数字。</p>' +
+        '<p class="faint" style="margin-bottom:0">进度记录还在本机，没上传。要准备下一场，先到<a href="about.html">说明</a>页导出备份，' +
+        '再在网址后面加 <code style="white-space:nowrap">?exam=2027-06-12</code> 这样的日期重新摸底。</p>' +
+        '</div>'
+      );
+    }
     var rows = plan.modes
       .map(function (m) {
         return (
