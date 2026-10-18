@@ -131,7 +131,7 @@
     } else if (pool === 0) {
       newSub = '不认识的主干词已经全部学完了 —— 单词这块可以收工，去练精听。';
     } else {
-      newSub = '不认识的主干词还剩 ' + pool + ' 个 · 约 ' + minutes(day.newGoal * SEC_NEW) + ' 分钟';
+      newSub = '看单词选中文意思 · 不认识的主干词还剩 ' + pool + ' 个 · 约 ' + minutes(day.newGoal * SEC_NEW) + ' 分钟';
     }
     var newSkip = day.newGoal === 0 || pool === 0;
 
@@ -139,7 +139,7 @@
     if (day.reviewGoal === 0) {
       reviewSub = due === 0 ? '今天没有到期的复习词。' : '这一档不安排复习；到期的还有 ' + due + ' 个，明天会排上。';
     } else {
-      reviewSub = '今天到期 ' + due + ' 个 · 约 ' + minutes(day.reviewGoal * SEC_REVIEW) + ' 分钟';
+      reviewSub = '看中文意思选单词 · 今天到期 ' + due + ' 个 · 约 ' + minutes(day.reviewGoal * SEC_REVIEW) + ' 分钟';
       if (due > day.reviewGoal) {
         reviewSub += '（还有 ' + (due - day.reviewGoal) + ' 个排在后面，不用赶）';
       }
