@@ -113,7 +113,11 @@
     var mode = modeFor(state, key);
     var rec = S.day(state, key);
     rec.tier = mode.id;
-    rec.newGoal = mode.newWords;
+    // 新词额度不能超过「今天开始时还剩多少词」：当前剩余 + 今天已经做过的。
+    // 只按当前剩余算的话，每答一个词额度就缩一格，今天会提前算完成。
+    // 词表背完后额度归 0，否则今日页永远差几个新词，今天和连续天数都完不成。
+    var pool = window.CET4_SRS.countNewPool(state.srs || {}, coreWords(), answers());
+    rec.newGoal = Math.min(mode.newWords, pool + (Number(rec.newDone) || 0));
     rec.reviewGoal = Math.min(mode.reviewCap, window.CET4_SRS.countDue(state.srs || {}, coreWords(), key));
     rec.listenGoal = mode.listen || 0;
     rec.readGoal = mode.read || 0;

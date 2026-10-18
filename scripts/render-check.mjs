@@ -83,6 +83,14 @@ function answersFor(every) {
   return answers
 }
 
+function allKnownAnswers() {
+  const answers = {}
+  WORDS.forEach((w) => {
+    answers[w.w] = 1
+  })
+  return answers
+}
+
 function probeRecord(answers) {
   return {
     core: {
@@ -109,6 +117,15 @@ const SEED_GROUP = {
   probe: {
     core: { answers: {}, cursor: 499, startedAt: stamp(-1), updatedAt: stamp(-1), doneAt: null },
   },
+  plan: null,
+  srs: {},
+  days: {},
+  settings: { theme: '', tier: '' },
+}
+
+// 所有主干词都标「认识」：词表已经背完，今天不该再要求做新词
+const SEED_ALL_KNOWN = {
+  probe: probeRecord(allKnownAnswers()),
   plan: null,
   srs: {},
   days: {},
@@ -179,6 +196,7 @@ const SEEDS = {
   probe: JSON.stringify(SEED_PROBE),
   study: JSON.stringify(SEED_STUDY),
   group: JSON.stringify(SEED_GROUP),
+  known: JSON.stringify(SEED_ALL_KNOWN),
 }
 
 // 各份假进度里「事先说好」的数字，测试直接拿它们对答案
@@ -214,6 +232,7 @@ const PAGES = [
   { file: 'index.html', name: 'today-未摸底', test: 'INDEX' },
   { file: 'index.html', name: 'today-刚摸底完', test: 'TODAY_LIGHT', seed: 'probe' },
   { file: 'index.html', name: 'today-学了一阵', test: 'TODAY', seed: 'study' },
+  { file: 'index.html', name: 'today-词表背完', test: 'TODAY_ALL_KNOWN', seed: 'known' },
   { file: 'probe.html', name: 'probe', test: 'PROBE' },
   { file: 'probe.html', name: 'probe-扫完了', test: 'PROBE_DONE', seed: 'study' },
   { file: 'probe.html', name: 'probe-组小结', test: 'PROBE_GROUP_END', seed: 'group' },
@@ -597,6 +616,27 @@ const TODAY_TEST = `(() => {
   if (info.storedDefaultTier === 'min') problems.push('「只有 10 分钟」不该改默认档位 —— 它只是今天的台阶');
   if (!info.listenRowGone) problems.push('降到最轻档之后不该再要精听（那一档只保单词不断档）');
   if (!info.readRowGone) problems.push('降到最轻档之后不该再要短读');
+  return { info, problems };
+})()`
+
+// 今日页：主干词全部认识（词表背完）——新词额度必须是 0，今天要能算完成
+const TODAY_ALL_KNOWN_TEST = `(() => {
+  const problems = [];
+  const info = {};
+  const text = document.body.innerText;
+  info.allLearned = /全部学完了/.test(text);
+  info.doneBanner = /今天做完了/.test(text);
+  info.wrongPrompt = /只有 10 分钟.*以外的选择/.test(text);
+  // 今日页只读不写，直接取页面算出来的今天状态；localStorage 里还没建这一天的记录
+  const t = window.CET4_APP.todayState();
+  info.newGoal = t && t.day ? t.day.newGoal : null;
+  info.done = t && t.day ? t.day.done : null;
+
+  if (!info.allLearned) problems.push('词表全部认识时没有说明「全部学完了」');
+  if (info.wrongPrompt) problems.push('词表全部认识时显示了错误的档位提示');
+  if (info.newGoal !== 0) problems.push('词表全部认识时每日新词额度应该是 0，实际 ' + info.newGoal);
+  if (!info.done) problems.push('词表全部认识时当天应该算完成');
+  if (!info.doneBanner) problems.push('词表全部认识时没有显示「今天做完了」');
   return { info, problems };
 })()`
 
@@ -1167,6 +1207,7 @@ const TESTS = {
   INDEX: INDEX_TEST,
   TODAY: TODAY_TEST,
   TODAY_LIGHT: TODAY_LIGHT_TEST,
+  TODAY_ALL_KNOWN: TODAY_ALL_KNOWN_TEST,
   ABOUT: ABOUT_TEST,
 }
 

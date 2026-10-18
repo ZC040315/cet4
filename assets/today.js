@@ -126,10 +126,10 @@
       '<h1>今天 · ' + dateLabel(key) + ' <span class="faint" style="font-size:16px">第 ' + A.dayNumber() + ' 天</span></h1>';
 
     var newSub;
-    if (day.newGoal === 0) {
-      newSub = '今天是「只有 10 分钟」档以外的选择？回去选一个档位。';
-    } else if (pool === 0) {
+    if (pool === 0) {
       newSub = '不认识的主干词已经全部学完了 —— 单词这块可以收工，去练精听。';
+    } else if (day.newGoal === 0) {
+      newSub = '今天是「只有 10 分钟」档以外的选择？回去选一个档位。';
     } else {
       newSub = '看单词选中文意思 · 不认识的主干词还剩 ' + pool + ' 个 · 约 ' + minutes(day.newGoal * SEC_NEW) + ' 分钟';
     }
