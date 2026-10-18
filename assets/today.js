@@ -42,6 +42,54 @@
     );
   }
 
+  /* 按「剩余新词 ÷ 剩余背词天数」重算一次额度，只给判断，不自动改档位。
+     档位是用户的选择；这里只把「按这个速度来不来得及」说清楚。 */
+  function tierForNeed(need) {
+    for (var i = 0; i < P.MODES.length; i++) {
+      if (P.MODES[i].newWords >= need) return P.MODES[i];
+    }
+    return P.MODES[P.MODES.length - 1];
+  }
+
+  function quotaHtml(pool, mode, key) {
+    if (!pool || P.isOver()) return '';
+    var plan = P.planFor({ unknown: pool, remainingScan: 0 });
+    if (!plan || plan.over || !plan.recommended) return '';
+
+    var need = plan.recommended;
+    var cap = mode.newWords;
+    var max = P.MODES[P.MODES.length - 1].newWords;
+
+    if (need <= cap) {
+      var days = Math.max(1, Math.ceil(pool / cap));
+      var finish = dateLabel(SRS.addDays(key, days - 1));
+      return (
+        '<p class="faint" data-quota>按现在的 <b>' + cap + '</b> 个/天，' + finish +
+        '背完，<b>来得及</b>（考前留了 ' + plan.studyDays + ' 个背词日）。</p>'
+      );
+    }
+
+    if (need <= max) {
+      var left = Math.max(0, pool - plan.studyDays * cap);
+      var next = tierForNeed(need);
+      return (
+        '<p class="faint" data-quota>按现在的 <b>' + cap + '</b> 个/天，考前还会剩 <b>' + left +
+        '</b> 个。调到「' + next.label + '」（' + next.newWords + ' 个/天）就来得及。</p>' +
+        '<div class="btn-row" style="margin-top:8px">' +
+          '<button class="btn btn--sm" type="button" data-quota-tier="' + next.id + '">' +
+            '调到「' + next.label + '」' +
+          '</button>' +
+        '</div>'
+      );
+    }
+
+    var short = Math.max(0, pool - plan.studyDays * max);
+    return (
+      '<p class="faint" data-quota>即使每天 <b>' + max + '</b> 个，考前也会剩 <b>' + short +
+      '</b> 个。先保住高频词，别为了数量硬撑。</p>'
+    );
+  }
+
   function render() {
     var table = A.coreTable();
     if (!table) {
@@ -218,6 +266,7 @@
         realRow +
         readRow +
       '</div>' +
+      quotaHtml(pool, mode, key) +
       (mode.id === 'min' ? '' :
         '<button class="btn btn--block" type="button" data-min>只有 10 分钟？→ 今天只做最重要的 10 个词</button>' +
         '<p class="faint">这只是今天降一档，明天自动回到你选的那个档。</p>') +
@@ -246,6 +295,13 @@
     var min = ev.target.closest ? ev.target.closest('[data-min]') : null;
     if (min) {
       A.setTierToday('min');
+      render();
+      window.scrollTo(0, 0);
+      return;
+    }
+    var quota = ev.target.closest ? ev.target.closest('[data-quota-tier]') : null;
+    if (quota) {
+      A.setTier(quota.getAttribute('data-quota-tier'));
       render();
       window.scrollTo(0, 0);
       return;

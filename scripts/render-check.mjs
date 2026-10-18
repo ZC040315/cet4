@@ -191,12 +191,21 @@ const SEED_STUDY = (() => {
   }
 })()
 
+// 同样的进度，但用户选了「只有 10 分钟」：剩 420 个词、41 个背词日，
+// 每天需要 15 个才背得完，当前 10 个/天会不够。
+const SEED_BEHIND = (() => {
+  const s = JSON.parse(JSON.stringify(SEED_STUDY))
+  s.settings.tier = 'min'
+  return s
+})()
+
 const SEEDS = {
   none: '',
   probe: JSON.stringify(SEED_PROBE),
   study: JSON.stringify(SEED_STUDY),
   group: JSON.stringify(SEED_GROUP),
   known: JSON.stringify(SEED_ALL_KNOWN),
+  behind: JSON.stringify(SEED_BEHIND),
 }
 
 // 各份假进度里「事先说好」的数字，测试直接拿它们对答案
@@ -233,6 +242,7 @@ const PAGES = [
   { file: 'index.html', name: 'today-刚摸底完', test: 'TODAY_LIGHT', seed: 'probe' },
   { file: 'index.html', name: 'today-学了一阵', test: 'TODAY', seed: 'study' },
   { file: 'index.html', name: 'today-词表背完', test: 'TODAY_ALL_KNOWN', seed: 'known' },
+  { file: 'index.html', name: 'today-额度落后', test: 'TODAY_BEHIND', seed: 'behind' },
   { file: 'probe.html', name: 'probe', test: 'PROBE' },
   { file: 'probe.html', name: 'probe-扫完了', test: 'PROBE_DONE', seed: 'study' },
   { file: 'probe.html', name: 'probe-组小结', test: 'PROBE_GROUP_END', seed: 'group' },
@@ -571,10 +581,14 @@ const TODAY_TEST = `(() => {
   info.dayNumber = (text.match(/第 (\\d+) 天/) || [])[1] || null;
   info.minButton = Boolean(document.querySelector('[data-min]'));
   info.doneRows = document.querySelectorAll('.task[data-done="1"]').length;
+  const quota = document.querySelector('[data-quota]');
+  info.quota = quota ? quota.textContent.replace(/\\s+/g, ' ').trim() : '';
 
   if (info.newLine !== '${FACTS.new500}') problems.push('推荐每天 ${FACTS.new500} 个 → 默认档新词应该是 ${FACTS.new500}，实际 ' + info.newLine);
   if (info.reviewLine !== '${FACTS.review500}') problems.push('今天到期 ${FACTS.studyDue} 个、档位上限之内 → 复习应该是 ${FACTS.review500}，实际 ' + info.reviewLine);
   if (!info.minButton) problems.push('不在最轻档时应该显示「只有 10 分钟」按钮');
+  if (!/来得及/.test(info.quota)) problems.push('按当前档位来得及时没有说清楚：' + info.quota);
+  if (!/个\\/天/.test(info.quota)) problems.push('额度提示没有写出每天几个：' + info.quota);
   if (info.dayNumber !== '3') problems.push('两周前开始、今天应该是第 3 天，实际 ' + info.dayNumber);
 
   // 换到标准档：精听和真题音频这两行才会出现（规划书第十一节的表）
@@ -637,6 +651,37 @@ const TODAY_ALL_KNOWN_TEST = `(() => {
   if (info.newGoal !== 0) problems.push('词表全部认识时每日新词额度应该是 0，实际 ' + info.newGoal);
   if (!info.done) problems.push('词表全部认识时当天应该算完成');
   if (!info.doneBanner) problems.push('词表全部认识时没有显示「今天做完了」');
+  return { info, problems };
+})()`
+
+// 今日页：选了最低档，但按剩余词数算不够 —— 应该提示会剩多少，并给一个调档按钮
+const TODAY_BEHIND_TEST = `(() => {
+  const problems = [];
+  const info = {};
+  const text = document.body.innerText;
+  const quota = document.querySelector('[data-quota]');
+  info.quota = quota ? quota.textContent.replace(/\\s+/g, ' ').trim() : '';
+  info.newBefore = (text.match(/新词 (\\d+) 个/) || [])[1] || null;
+  info.saysBehind = /还会剩/.test(info.quota);
+  info.suggestsFloor = /保底/.test(info.quota);
+
+  const btn = document.querySelector('[data-quota-tier]');
+  info.btn = btn ? btn.getAttribute('data-quota-tier') : null;
+  if (btn) btn.click();
+  const after = document.body.innerText;
+  info.newAfter = (after.match(/新词 (\\d+) 个/) || [])[1] || null;
+  const q2 = document.querySelector('[data-quota]');
+  info.afterQuota = q2 ? q2.textContent.replace(/\\s+/g, ' ').trim() : '';
+  info.afterOk = /来得及/.test(info.afterQuota);
+  info.tierStored = JSON.parse(localStorage.getItem('cet4.v1')).settings.tier;
+
+  if (info.newBefore !== '10') problems.push('落后场景应从「只有 10 分钟」档开始：' + info.newBefore);
+  if (!info.saysBehind) problems.push('额度落后时没有提示考前还会剩：' + info.quota);
+  if (!info.suggestsFloor) problems.push('额度落后时没有建议「保底」档：' + info.quota);
+  if (info.btn !== 'floor') problems.push('建议调档的按钮应该是 floor：' + info.btn);
+  if (info.newAfter !== '15') problems.push('调到保底档后新词应该是 15 个：' + info.newAfter);
+  if (!info.afterOk) problems.push('调到保底档后应该显示来得及：' + info.afterQuota);
+  if (info.tierStored !== 'floor') problems.push('调档没有存进 settings.tier：' + info.tierStored);
   return { info, problems };
 })()`
 
@@ -1208,6 +1253,7 @@ const TESTS = {
   TODAY: TODAY_TEST,
   TODAY_LIGHT: TODAY_LIGHT_TEST,
   TODAY_ALL_KNOWN: TODAY_ALL_KNOWN_TEST,
+  TODAY_BEHIND: TODAY_BEHIND_TEST,
   ABOUT: ABOUT_TEST,
 }
 
