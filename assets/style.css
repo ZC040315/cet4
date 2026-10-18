@@ -297,6 +297,12 @@ p { margin: 0 0 14px; }
 .stat b { display: block; font-size: 28px; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .stat span { font-size: 14px; color: var(--text-faint); }
 
+/* 结束页是四个数字：窄屏排成 2×2，别三个一行再掉一个 */
+@media (max-width: 560px) {
+  .stats--finish { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 22px; }
+  .stats--finish .stat { min-width: 0; }
+}
+
 /* ---------- 说明页 ---------- */
 
 .prose h2 { margin-top: 30px; }
@@ -354,6 +360,73 @@ footer.site p { margin: 0 0 10px; }
 }
 
 .study-answer.is-hidden { border-top: 0; min-height: 8px; padding-top: 4px; margin-top: 8px; }
+
+/* ---------- 背词 · 四选一 ---------- */
+
+.study-kicker { color: var(--text-faint); font-size: 15px; margin: 2px 0 4px; }
+
+/* 复习的题面是中文，别用英文衬线体那套 56px 的字号 */
+.study-word--zh {
+  font-family: var(--font-sans);
+  font-size: clamp(26px, 8vw, 36px);
+  line-height: 1.4;
+  letter-spacing: 0;
+  margin: 8px 0 4px;
+}
+
+.choices { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 11px 14px;
+  text-align: left;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 17px;
+  line-height: 1.45;
+}
+
+.choice:hover:not([disabled]) { border-color: var(--text-muted); background: var(--surface-2); }
+
+.choice-key {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.choice-text { flex: 1 1 auto; min-width: 0; word-break: break-word; }
+.choice--en .choice-text { font-family: var(--font-en); font-size: 20px; }
+.choice-flag { flex: 0 0 auto; font-weight: 700; }
+
+.choice.is-right { border-color: var(--ok); background: var(--ok-soft); }
+.choice.is-right .choice-key { border-color: var(--ok); color: var(--ok); }
+.choice.is-right .choice-flag { color: var(--ok); }
+
+.choice.is-wrong { border-color: var(--no); background: var(--no-soft); }
+.choice.is-wrong .choice-key { border-color: var(--no); color: var(--no); }
+.choice.is-wrong .choice-flag { color: var(--no); }
+
+.choice[disabled] { cursor: default; opacity: 1; }
+/* 答完之后，没选的那些退到后面去，别和答案抢注意力 */
+.choice[disabled]:not(.is-right):not(.is-wrong) { opacity: .5; }
+
+.study-feedback { min-height: 28px; margin-top: 14px; font-size: 17px; line-height: 1.5; }
+.study-feedback.is-ok { color: var(--ok); }
+.study-feedback.is-no { color: var(--no); }
 
 /* ---------- 进度页的近日条 ---------- */
 

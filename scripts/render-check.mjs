@@ -209,6 +209,7 @@ const PAGES = [
   { file: 'study.html', name: 'study-new', test: 'STUDY_NEW', seed: 'study', hash: '?mode=new' },
   { file: 'study.html', name: 'study-review', test: 'STUDY_REVIEW', seed: 'study', hash: '?mode=review' },
   { file: 'study.html', name: 'study-book', test: 'STUDY_BOOK', seed: 'study', hash: '?mode=book' },
+  { file: 'study.html', name: 'study-finish', test: 'STUDY_FINISH', seed: 'study', hash: '?mode=new' },
   { file: 'progress.html', name: 'progress', test: 'PROGRESS', seed: 'study' },
   {
     file: 'listening.html',
@@ -608,37 +609,55 @@ const STUDY_NEW_TEST = `(() => {
     return { info, problems };
   }
   info.queueLen = queueLen();
-  const word = document.querySelector('.study-word').textContent;
+  info.kicker = card.querySelector('.study-kicker').textContent.trim();
+  const word = card.querySelector('[data-study-word]').getAttribute('data-study-word');
   info.word = word;
-  info.meaningShown = document.querySelector('.study-answer').textContent.trim().length > 0;
-  info.grades = Array.from(document.querySelectorAll('[data-grade]')).map((b) => b.getAttribute('data-grade'));
+  info.prompt = card.querySelector('.study-word').textContent.trim();
+  info.optTexts = Array.from(card.querySelectorAll('.choice-text')).map((n) => n.textContent.trim());
+  info.correctOpts = card.querySelectorAll('.choice[data-ok="1"]').length;
+  info.nextBefore = Boolean(card.querySelector('[data-next]'));
 
-  // 第一张：记住了 → 进盒 1，今天的新词完成数 +1
-  document.querySelector('[data-grade="known"]').click();
+  // 第一张：选对 → 进盒 1，今天的新词完成数 +1
+  card.querySelector('.choice[data-ok="1"]').click();
   let store = JSON.parse(localStorage.getItem('cet4.v1'));
   const e1 = store.srs[word];
   info.afterKnown = e1 ? [e1.box, e1.seen, e1.inBook] : null;
   info.dayNewDone = store.days[key] ? store.days[key].newDone : null;
+  info.rightMarked = document.querySelectorAll('.choice.is-right').length === 1;
+  info.feedbackOk = document.querySelector('.study-feedback').classList.contains('is-ok');
+  info.hasNext = Boolean(document.querySelector('[data-next]'));
+
+  document.querySelector('[data-next]').click();
   info.advanced = Number(document.querySelector('[data-study-index]').getAttribute('data-study-index')) === 1;
 
-  // 第二张：还不熟 → 进错词本，而且本轮末尾会再问一遍
-  const word2 = document.querySelector('.study-word').textContent;
-  document.querySelector('[data-grade="missed"]').click();
+  // 第二张：选错 → 进错词本，而且本轮末尾会再问一遍
+  const card2 = document.querySelector('[data-study-card]');
+  const word2 = card2.querySelector('[data-study-word]').getAttribute('data-study-word');
+  card2.querySelector('.choice:not([data-ok="1"])').click();
   store = JSON.parse(localStorage.getItem('cet4.v1'));
   const e2 = store.srs[word2];
   info.afterMissed = e2 ? [e2.box, e2.inBook, e2.wrong] : null;
   info.dayNewDone2 = store.days[key].newDone;
   info.queueAfterMissed = queueLen();
+  info.wrongMarked = document.querySelectorAll('.choice.is-wrong').length === 1;
 
   if (info.queueLen !== ${FACTS.new500}) problems.push('默认档的新词队列应该是 ${FACTS.new500} 个，实际 ' + info.queueLen);
-  if (!info.meaningShown) problems.push('新词卡片应该直接给出释义');
-  if (JSON.stringify(info.grades) !== JSON.stringify(['missed', 'known'])) problems.push('新词卡片应该是「还不熟 / 记住了」两个按钮：' + JSON.stringify(info.grades));
-  if (JSON.stringify(info.afterKnown) !== JSON.stringify([1, 1, false])) problems.push('「记住了」应该进盒 1 且不进错词本：' + JSON.stringify(info.afterKnown));
+  if (!/看单词/.test(info.kicker) || !/中文/.test(info.kicker)) problems.push('新词卡片应该问「看单词选中文」：' + info.kicker);
+  if (info.prompt !== word) problems.push('新词卡片题面应该是英文单词：' + info.prompt);
+  if (info.optTexts.length !== 4) problems.push('新词应该给 4 个中文选项，实际 ' + info.optTexts.length);
+  if (!info.optTexts.every((t) => /[\\u4e00-\\u9fa5]/.test(t))) problems.push('新词选项应该是中文释义：' + JSON.stringify(info.optTexts));
+  if (info.correctOpts !== 1) problems.push('4 个选项里应该正好 1 个正确项，实际 ' + info.correctOpts);
+  if (info.nextBefore) problems.push('还没作答就出现了「下一个」');
+  if (JSON.stringify(info.afterKnown) !== JSON.stringify([1, 1, false])) problems.push('选对应该进盒 1 且不进错词本：' + JSON.stringify(info.afterKnown));
   if (info.dayNewDone !== 1) problems.push('今日新词完成数应该是 1：' + info.dayNewDone);
-  if (!info.advanced) problems.push('打完分没有换下一张卡');
-  if (JSON.stringify(info.afterMissed) !== JSON.stringify([1, true, 1])) problems.push('「还不熟」应该进错词本、盒 1：' + JSON.stringify(info.afterMissed));
+  if (!info.rightMarked) problems.push('答对后没有把正确项标绿');
+  if (!info.feedbackOk) problems.push('答对后没有「答对了」的反馈');
+  if (!info.hasNext) problems.push('答完没有「下一个」按钮');
+  if (!info.advanced) problems.push('点「下一个」没有换卡');
+  if (JSON.stringify(info.afterMissed) !== JSON.stringify([1, true, 1])) problems.push('选错应该进错词本、盒 1：' + JSON.stringify(info.afterMissed));
   if (info.dayNewDone2 !== 2) problems.push('今日新词完成数应该是 2：' + info.dayNewDone2);
-  if (info.queueAfterMissed !== ${FACTS.new500} + 1) problems.push('「还不熟」的词应该在本轮末尾再问一遍：' + info.queueAfterMissed);
+  if (info.queueAfterMissed !== ${FACTS.new500} + 1) problems.push('选错的词应该在本轮末尾再问一遍：' + info.queueAfterMissed);
+  if (!info.wrongMarked) problems.push('答错后没有把错选项标红');
   return { info, problems };
 })()`
 
@@ -654,28 +673,36 @@ const STUDY_REVIEW_TEST = `(() => {
     return { info, problems };
   }
   info.queueLen = queueLen();
-  const word = document.querySelector('[data-study-word]').getAttribute('data-study-word');
+  info.kicker = card.querySelector('.study-kicker').textContent.trim();
+  const word = card.querySelector('[data-study-word]').getAttribute('data-study-word');
   info.word = word;
-  info.noGradesYet = document.querySelectorAll('[data-grade]').length === 0;
-  info.answerHidden = document.querySelector('.study-answer').textContent.trim() === '';
+  info.prompt = card.querySelector('.study-word').textContent.trim();
+  info.optTexts = Array.from(card.querySelectorAll('.choice-text')).map((n) => n.textContent.trim());
+  info.noAnswerYet = card.querySelectorAll('.choice.is-right').length === 0;
+  info.nextBefore = Boolean(card.querySelector('[data-next]'));
 
-  document.querySelector('[data-reveal]').click();
-  info.gradesAfterReveal = Array.from(document.querySelectorAll('[data-grade]')).map((b) => b.getAttribute('data-grade'));
-  info.answerShown = document.querySelector('.study-answer').textContent.trim().length > 0;
-
-  document.querySelector('[data-grade="missed"]').click();
+  // 选一个错的 → 打回盒 1、明天再见、进错词本，并给出正确答案
+  card.querySelector('.choice:not([data-ok="1"])').click();
   const store = JSON.parse(localStorage.getItem('cet4.v1'));
   const e = store.srs[word];
   info.after = e ? [e.box, e.inBook, e.due === SRS.addDays(key, 1)] : null;
   info.dayReviewDone = store.days[key].reviewDone;
+  info.feedback = document.querySelector('.study-feedback').textContent;
+  info.showsCorrect = info.feedback.indexOf(word) >= 0;
+  info.correctMarked = document.querySelectorAll('.choice.is-right').length === 1;
+  info.wrongMarked = document.querySelectorAll('.choice.is-wrong').length === 1;
 
   if (info.queueLen !== ${FACTS.review500}) problems.push('今天到期 ${FACTS.studyDue} 个复习词、档位上限 ${FACTS.review500} → 队列应该是 ${FACTS.review500}，实际 ' + info.queueLen);
-  if (!info.noGradesYet) problems.push('复习卡片一开始不该有自评按钮 —— 要先自己回忆');
-  if (!info.answerHidden) problems.push('复习卡片一开始就把释义露出来了');
-  if (JSON.stringify(info.gradesAfterReveal) !== JSON.stringify(['known', 'fuzzy', 'missed'])) problems.push('看释义后应该是三档自评：' + JSON.stringify(info.gradesAfterReveal));
-  if (!info.answerShown) problems.push('点了「看释义」还是没有释义');
-  if (JSON.stringify(info.after) !== JSON.stringify([1, true, true])) problems.push('「忘了」应该打回盒 1、明天再见、进错词本：' + JSON.stringify(info.after));
+  if (!/看中文/.test(info.kicker) || !/单词/.test(info.kicker)) problems.push('复习卡片应该问「看中文选单词」：' + info.kicker);
+  if (info.prompt === word || !/[\\u4e00-\\u9fa5]/.test(info.prompt)) problems.push('复习题面应该是中文释义：' + info.prompt);
+  if (info.optTexts.length !== 4) problems.push('复习应该给 4 个单词选项，实际 ' + info.optTexts.length);
+  if (!info.optTexts.every((t) => /^[a-z][a-z' -]*$/i.test(t))) problems.push('复习选项应该是英文单词：' + JSON.stringify(info.optTexts));
+  if (!info.noAnswerYet) problems.push('还没作答就标出了正确项');
+  if (info.nextBefore) problems.push('还没作答就出现了「下一个」');
+  if (JSON.stringify(info.after) !== JSON.stringify([1, true, true])) problems.push('选错应该打回盒 1、明天再见、进错词本：' + JSON.stringify(info.after));
   if (info.dayReviewDone !== 1) problems.push('今日复习完成数应该是 1：' + info.dayReviewDone);
+  if (!info.showsCorrect) problems.push('答错后没有给出正确答案：' + info.feedback);
+  if (!info.correctMarked || !info.wrongMarked) problems.push('答错后没有同时标出正确项和错选项');
   return { info, problems };
 })()`
 
@@ -691,23 +718,65 @@ const STUDY_BOOK_TEST = `(() => {
     return { info, problems };
   }
   info.queueLen = queueLen();
-  const word = document.querySelector('[data-study-word]').getAttribute('data-study-word');
+  info.kicker = card.querySelector('.study-kicker').textContent.trim();
+  const word = card.querySelector('[data-study-word]').getAttribute('data-study-word');
   info.word = word;
+  const prompt = card.querySelector('.study-word').textContent.trim();
+  info.promptIsZh = /[\\u4e00-\\u9fa5]/.test(prompt) && prompt !== word;
   const before = JSON.parse(localStorage.getItem('cet4.v1'));
-  info.pickedInBook = Boolean(before.srs[word]) && before.srs[word].inBook === true;
+  const beforeEntry = before.srs[word];
+  info.pickedInBook = Boolean(beforeEntry) && beforeEntry.inBook === true;
+  const streak = beforeEntry ? beforeEntry.streakOk || 0 : 0;
 
-  document.querySelector('[data-reveal]').click();
-  document.querySelector('[data-grade="known"]').click();
+  card.querySelector('.choice[data-ok="1"]').click();
   const store = JSON.parse(localStorage.getItem('cet4.v1'));
   const e = store.srs[word];
   info.after = e ? [e.inBook, e.streakOk] : null;
+  info.expected = [streak + 1 >= 2 ? false : true, streak + 1];
   const today = store.days[key];
   info.dayUntouched = !today || (!today.newDone && !today.reviewDone);
 
   if (info.queueLen !== ${FACTS.studyBook}) problems.push('错词本里有 ${FACTS.studyBook} 个词 → 队列应该是 ${FACTS.studyBook}，实际 ' + info.queueLen);
+  if (!/中文/.test(info.kicker)) problems.push('错词本应该跟复习一样看中文选单词：' + info.kicker);
+  if (!info.promptIsZh) problems.push('错词本题面应该是中文释义：' + prompt);
   if (!info.pickedInBook) problems.push('错词本练习取到的词不在错词本里：' + word);
-  if (JSON.stringify(info.after) !== JSON.stringify([true, 1])) problems.push('错词本里第一次「记得」还应该留着（连着两次才出）：' + JSON.stringify(info.after));
+  if (JSON.stringify(info.after) !== JSON.stringify(info.expected)) problems.push('错词本里选对后应该按「连续两次」规则决定去留：期望 ' + JSON.stringify(info.expected) + '，实际 ' + JSON.stringify(info.after));
   if (!info.dayUntouched) problems.push('错词本是加练，不该算进今天的完成数');
+  return { info, problems };
+})()`
+
+const STUDY_FINISH_TEST = `(() => {
+  const problems = [];
+  const info = {};
+  let steps = 0;
+  while (document.querySelector('[data-study-card]') && steps < 40) {
+    const card = document.querySelector('[data-study-card]');
+    const pick = steps === 0
+      ? card.querySelector('.choice:not([data-ok="1"])')
+      : card.querySelector('.choice[data-ok="1"]');
+    pick.click();
+    const next = document.querySelector('[data-next]');
+    if (!next) break;
+    next.click();
+    steps++;
+  }
+  info.steps = steps;
+  const text = document.body.innerText;
+  info.finished = /这一轮结束了/.test(text);
+  info.stats = Array.from(document.querySelectorAll('.stat b')).map((b) => b.textContent.trim());
+  info.say = (text.match(/这一轮答对[^\\n]*/) || [''])[0];
+  info.again = Boolean(document.querySelector('[data-again]'));
+  if (info.finished && info.again) {
+    document.querySelector('[data-again]').click();
+    info.restarted = Boolean(document.querySelector('[data-study-card]'));
+  }
+
+  if (steps !== ${FACTS.new500} + 1) problems.push('新词 ${FACTS.new500} 个、错 1 个重做 → 一共要答 ${FACTS.new500} + 1 次，实际 ' + steps);
+  if (!info.finished) problems.push('答完没有出现结束页');
+  if (info.stats[0] !== '${FACTS.new500}') problems.push('结束页「过了一遍的词」应该是 ${FACTS.new500}，实际 ' + info.stats[0]);
+  if (info.stats[1] !== Math.round((${FACTS.new500} / (${FACTS.new500} + 1)) * 100) + '%') problems.push('答对率算错了：' + info.stats[1]);
+  if (!/答对 ${FACTS.new500} \\/ ${FACTS.new500 + 1}/.test(info.say)) problems.push('结束页的答对数写错了：' + info.say);
+  if (!info.again || !info.restarted) problems.push('结束页的「再来一轮」没有重新开始');
   return { info, problems };
 })()`
 
@@ -972,6 +1041,7 @@ const TESTS = {
   STUDY_NEW: STUDY_NEW_TEST,
   STUDY_REVIEW: STUDY_REVIEW_TEST,
   STUDY_BOOK: STUDY_BOOK_TEST,
+  STUDY_FINISH: STUDY_FINISH_TEST,
   LISTEN_LIST: LISTEN_LIST_TEST,
   LISTEN_FLOW: LISTEN_FLOW_TEST,
   LISTEN_RELISTEN: LISTEN_RELISTEN_TEST,
