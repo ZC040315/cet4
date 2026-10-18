@@ -104,6 +104,17 @@ const SEED_PROBE = {
   settings: { theme: '', tier: '' },
 }
 
+// 刚好扫到第 500 个词：用来验「组小结页上方向键不能替下一个词打分」
+const SEED_GROUP = {
+  probe: {
+    core: { answers: {}, cursor: 499, startedAt: stamp(-1), updatedAt: stamp(-1), doneAt: null },
+  },
+  plan: null,
+  srs: {},
+  days: {},
+  settings: { theme: '', tier: '' },
+}
+
 // 摸底 + 学了一阵：500 个不认识 → 推荐每天 15 个 → 默认「保底」档；
 // 前 80 个已经学过，其中 30 个今天到期、25 个在错词本里；前两天都做完了
 const SEED_STUDY = (() => {
@@ -167,6 +178,7 @@ const SEEDS = {
   none: '',
   probe: JSON.stringify(SEED_PROBE),
   study: JSON.stringify(SEED_STUDY),
+  group: JSON.stringify(SEED_GROUP),
 }
 
 // 各份假进度里「事先说好」的数字，测试直接拿它们对答案
@@ -204,6 +216,7 @@ const PAGES = [
   { file: 'index.html', name: 'today-学了一阵', test: 'TODAY', seed: 'study' },
   { file: 'probe.html', name: 'probe', test: 'PROBE' },
   { file: 'probe.html', name: 'probe-扫完了', test: 'PROBE_DONE', seed: 'study' },
+  { file: 'probe.html', name: 'probe-组小结', test: 'PROBE_GROUP_END', seed: 'group' },
   { file: 'words.html', name: 'words', test: 'WORDS' },
   { file: 'words.html', name: 'words-unknown', test: 'WORDS_UNKNOWN', seed: 'study', hash: '?mark=0' },
   { file: 'study.html', name: 'study-new', test: 'STUDY_NEW', seed: 'study', hash: '?mode=new' },
@@ -409,6 +422,20 @@ const WORDS_TEST = `(() => {
   info.total = Number(rows().getAttribute('data-rows'));
   info.visible = Number(rows().getAttribute('data-visible'));
 
+  // 词表里的单词可以点读
+  window.__said = '';
+  window.speechSynthesis.speak = function (u) {
+    window.__said = u.text;
+    if (u.onend) setTimeout(u.onend, 0);
+  };
+  const sayBtn = document.querySelector('.row-say');
+  info.hasSay = Boolean(sayBtn);
+  info.sayWord = sayBtn ? sayBtn.getAttribute('data-say') : '';
+  if (sayBtn) {
+    sayBtn.click();
+    info.said = window.__said;
+  }
+
   fire('abandon');
   info.searchHit = Number(rows().getAttribute('data-rows'));
   info.searchWord = document.querySelector('.row-word') ? document.querySelector('.row-word').textContent : '';
@@ -429,6 +456,8 @@ const WORDS_TEST = `(() => {
   }
 
   if (info.visible !== 200) problems.push('首屏不是 200 行：' + info.visible);
+  if (!info.hasSay) problems.push('词表里的单词没有点读按钮');
+  if (info.said !== info.sayWord) problems.push('词表点单词没有把词交给 TTS：' + info.said);
   if (info.total !== window.CET4_WORDS_CORE.words.length) problems.push('词表总数不对：' + info.total);
   if (!(info.searchHit > 0 && info.searchHit < info.total)) problems.push('搜索「abandon」应该有命中：' + info.searchHit);
   if (String(info.searchWord).indexOf('abandon') !== 0) problems.push('搜索命中的第一条不是 abandon：' + info.searchWord);
@@ -589,6 +618,43 @@ const PROBE_DONE_TEST = `(() => {
   return { info, problems };
 })()`
 
+// 组小结页：方向键不能替下一个还没显示出来的词打分
+const PROBE_GROUP_END_TEST = `(() => {
+  const problems = [];
+  const info = {};
+  const cursorOf = () => {
+    const el = document.querySelector('[data-probe-cursor]');
+    return el ? Number(el.getAttribute('data-probe-cursor')) : null;
+  };
+  const stored = () => JSON.parse(localStorage.getItem('cet4.v1'));
+  info.cursor0 = cursorOf();
+  if (info.cursor0 !== 499) {
+    problems.push('种子没有落在第 500 个词：' + info.cursor0);
+    return { info, problems };
+  }
+
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+  info.summary = /组扫完了/.test(document.body.innerText);
+  info.cursorAfterFirst = stored().probe.core.cursor;
+
+  // 这一步以前会把下一个词直接标掉
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+  info.cursorAfterSecond = stored().probe.core.cursor;
+  info.answersAfterSecond = Object.keys(stored().probe.core.answers).length;
+  info.summaryStill = /组扫完了/.test(document.body.innerText);
+
+  document.querySelector('[data-next]').click();
+  info.cursorAfterContinue = cursorOf();
+
+  if (!info.summary) problems.push('第 500 个词之后没有出现组小结');
+  if (info.cursorAfterFirst !== 500) problems.push('第一次方向键应该只判到第 500 个：' + info.cursorAfterFirst);
+  if (info.cursorAfterSecond !== 500) problems.push('组小结页按方向键误判了下一个词：cursor ' + info.cursorAfterSecond);
+  if (info.answersAfterSecond !== 1) problems.push('组小结页不该写入新的判断：' + info.answersAfterSecond);
+  if (!info.summaryStill) problems.push('组小结页按方向键后小结消失了');
+  if (info.cursorAfterContinue !== 500) problems.push('点「继续」后应该停在第 500 个：' + info.cursorAfterContinue);
+  return { info, problems };
+})()`
+
 // ---------- 背词：新词、复习、错词本 ----------
 
 // 队列长度从「第 1 / 15 · 新词」这行里读，免得把数字写死在断言里
@@ -616,6 +682,25 @@ const STUDY_NEW_TEST = `(() => {
   info.optTexts = Array.from(card.querySelectorAll('.choice-text')).map((n) => n.textContent.trim());
   info.correctOpts = card.querySelectorAll('.choice[data-ok="1"]').length;
   info.nextBefore = Boolean(card.querySelector('[data-next]'));
+
+  // 发音按钮：点一下应该把单词交给 TTS（无头浏览器里 stub 掉真正的播放）
+  window.__said = '';
+  window.speechSynthesis.speak = function (u) {
+    window.__said = u.text;
+    if (u.onend) setTimeout(u.onend, 0);
+  };
+  const say = card.querySelector('[data-say]');
+  info.hasSay = Boolean(say);
+  if (say) {
+    say.click();
+    info.said = window.__said;
+  }
+
+  // 干扰项应该跟正确项同词性
+  const correctChoice = card.querySelector('.choice[data-ok="1"]');
+  info.correctPos = correctChoice.getAttribute('data-pos');
+  info.optPos = Array.from(card.querySelectorAll('.choice')).map((b) => b.getAttribute('data-pos'));
+  info.samePos = info.optPos.filter((p) => p === info.correctPos).length;
 
   // 第一张：选对 → 进盒 1，今天的新词完成数 +1
   card.querySelector('.choice[data-ok="1"]').click();
@@ -647,6 +732,10 @@ const STUDY_NEW_TEST = `(() => {
   if (info.optTexts.length !== 4) problems.push('新词应该给 4 个中文选项，实际 ' + info.optTexts.length);
   if (!info.optTexts.every((t) => /[\\u4e00-\\u9fa5]/.test(t))) problems.push('新词选项应该是中文释义：' + JSON.stringify(info.optTexts));
   if (info.correctOpts !== 1) problems.push('4 个选项里应该正好 1 个正确项，实际 ' + info.correctOpts);
+  if (!info.hasSay) problems.push('新词卡片没有「读这个词」按钮');
+  if (info.said !== word) problems.push('点发音按钮没有把单词交给 TTS：' + info.said);
+  if (!info.correctPos) problems.push('正确项没有标出词性');
+  if (info.samePos < 3) problems.push('干扰项没有按同一词性挑：' + JSON.stringify(info.optPos));
   if (info.nextBefore) problems.push('还没作答就出现了「下一个」');
   if (JSON.stringify(info.afterKnown) !== JSON.stringify([1, 1, false])) problems.push('选对应该进盒 1 且不进错词本：' + JSON.stringify(info.afterKnown));
   if (info.dayNewDone !== 1) problems.push('今日新词完成数应该是 1：' + info.dayNewDone);
@@ -680,6 +769,17 @@ const STUDY_REVIEW_TEST = `(() => {
   info.optTexts = Array.from(card.querySelectorAll('.choice-text')).map((n) => n.textContent.trim());
   info.noAnswerYet = card.querySelectorAll('.choice.is-right').length === 0;
   info.nextBefore = Boolean(card.querySelector('[data-next]'));
+  info.sayBefore = Boolean(card.querySelector('[data-say]'));
+
+  window.__said = '';
+  window.speechSynthesis.speak = function (u) {
+    window.__said = u.text;
+    if (u.onend) setTimeout(u.onend, 0);
+  };
+  const correctChoice = card.querySelector('.choice[data-ok="1"]');
+  info.correctPos = correctChoice.getAttribute('data-pos');
+  info.optPos = Array.from(card.querySelectorAll('.choice')).map((b) => b.getAttribute('data-pos'));
+  info.samePos = info.optPos.filter((p) => p === info.correctPos).length;
 
   // 选一个错的 → 打回盒 1、明天再见、进错词本，并给出正确答案
   card.querySelector('.choice:not([data-ok="1"])').click();
@@ -692,12 +792,23 @@ const STUDY_REVIEW_TEST = `(() => {
   info.correctMarked = document.querySelectorAll('.choice.is-right').length === 1;
   info.wrongMarked = document.querySelectorAll('.choice.is-wrong').length === 1;
 
+  // 答完才允许听：这时听的是答案，不再泄露
+  info.hasSayAfter = Boolean(document.querySelector('[data-say]'));
+  if (info.hasSayAfter) {
+    document.querySelector('[data-say]').click();
+    info.said = window.__said;
+  }
+
   if (info.queueLen !== ${FACTS.review500}) problems.push('今天到期 ${FACTS.studyDue} 个复习词、档位上限 ${FACTS.review500} → 队列应该是 ${FACTS.review500}，实际 ' + info.queueLen);
   if (!/看中文/.test(info.kicker) || !/单词/.test(info.kicker)) problems.push('复习卡片应该问「看中文选单词」：' + info.kicker);
   if (info.prompt === word || !/[\\u4e00-\\u9fa5]/.test(info.prompt)) problems.push('复习题面应该是中文释义：' + info.prompt);
   if (info.optTexts.length !== 4) problems.push('复习应该给 4 个单词选项，实际 ' + info.optTexts.length);
   if (!info.optTexts.every((t) => /^[a-z][a-z' -]*$/i.test(t))) problems.push('复习选项应该是英文单词：' + JSON.stringify(info.optTexts));
   if (!info.noAnswerYet) problems.push('还没作答就标出了正确项');
+  if (info.sayBefore) problems.push('复习还没作答就出现了发音按钮 —— 等于把答案念出来');
+  if (!info.hasSayAfter) problems.push('复习答完后没有发音按钮');
+  if (info.said !== word) problems.push('复习答完后点发音没有读正确单词：' + info.said);
+  if (info.samePos < 3) problems.push('复习干扰项没有按同一词性挑：' + JSON.stringify(info.optPos));
   if (info.nextBefore) problems.push('还没作答就出现了「下一个」');
   if (JSON.stringify(info.after) !== JSON.stringify([1, true, true])) problems.push('选错应该打回盒 1、明天再见、进错词本：' + JSON.stringify(info.after));
   if (info.dayReviewDone !== 1) problems.push('今日复习完成数应该是 1：' + info.dayReviewDone);
@@ -1050,6 +1161,7 @@ const TESTS = {
   PROGRESS: PROGRESS_TEST,
   PROBE: PROBE_TEST,
   PROBE_DONE: PROBE_DONE_TEST,
+  PROBE_GROUP_END: PROBE_GROUP_END_TEST,
   WORDS: WORDS_TEST,
   WORDS_UNKNOWN: WORDS_UNKNOWN_TEST,
   INDEX: INDEX_TEST,

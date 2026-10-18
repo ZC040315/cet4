@@ -116,7 +116,9 @@
       var m = view.layer === 'core' ? markOf(w) : 'unscanned';
       var label = m === 'known' ? '认识' : m === 'unknown' ? '不认识' : '未扫';
       return '<li class="row" data-word="' + A.esc(w.w) + '">' +
-        '<span class="row-word">' + A.esc(w.w) + '</span>' +
+        '<button class="row-word row-say" type="button" data-say="' + A.esc(w.w) + '"' +
+          ' aria-label="朗读 ' + A.esc(w.w) + '">' + A.esc(w.w) +
+          '<span class="say-mark" aria-hidden="true">▶</span></button>' +
         '<span class="row-body">' +
           (w.ph ? '<span class="row-phon">/' + A.esc(w.ph) + '/</span> ' : '') +
           '<span class="row-zh">' + A.esc(w.zh) + '</span>' +
@@ -142,8 +144,12 @@
   }
 
   main.addEventListener('click', function (ev) {
-    var t = ev.target.closest ? ev.target.closest('[data-layer],[data-filter],[data-more]') : null;
+    var t = ev.target.closest ? ev.target.closest('[data-layer],[data-filter],[data-more],[data-say]') : null;
     if (!t) return;
+    if (t.hasAttribute('data-say')) {
+      A.say(t.getAttribute('data-say'));
+      return;
+    }
     if (t.hasAttribute('data-layer')) {
       view.layer = t.getAttribute('data-layer');
       view.shown = PAGE;

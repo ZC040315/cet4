@@ -76,7 +76,9 @@
 
     var bookRows = book.slice(0, BOOK_SHOWN).map(function (x) {
       return '<li class="row">' +
-        '<span class="row-word">' + A.esc(x.word.w) + '</span>' +
+        '<button class="row-word row-say" type="button" data-say="' + A.esc(x.word.w) + '"' +
+          ' aria-label="朗读 ' + A.esc(x.word.w) + '">' + A.esc(x.word.w) +
+          '<span class="say-mark" aria-hidden="true">▶</span></button>' +
         '<span class="row-body">' +
           (x.word.ph ? '<span class="row-phon">/' + A.esc(x.word.ph) + '/</span> ' : '') +
           '<span class="row-zh">' + A.esc(x.word.zh) + '</span>' +
@@ -126,7 +128,9 @@
               .map(function (x) {
                 var zh = A.wordGloss(x.w);
                 return '<li class="row">' +
-                  '<span class="row-word">' + A.esc(x.w) + '</span>' +
+                  '<button class="row-word row-say" type="button" data-say="' + A.esc(x.w) + '"' +
+                    ' aria-label="朗读 ' + A.esc(x.w) + '">' + A.esc(x.w) +
+                    '<span class="say-mark" aria-hidden="true">▶</span></button>' +
                   '<span class="row-body"><span class="row-zh">' + (zh ? A.esc(zh.slice(0, 46)) : '（词表里没有，自己查一下）') + '</span></span>' +
                   '<span class="row-mark" data-m="0">' +
                   A.esc({ passage: '篇章', conversation: '对话', news: '新闻' }[x.clipType] || '精听') +
@@ -156,6 +160,11 @@
         allReadings.length + ' 篇。<a href="reading.html">去读一篇</a></p>' +
       '</div>';
   }
+
+  main.addEventListener('click', function (ev) {
+    var t = ev.target.closest ? ev.target.closest('[data-say]') : null;
+    if (t) A.say(t.getAttribute('data-say'));
+  });
 
   window.CET4_APP.onImport = render;
   render();

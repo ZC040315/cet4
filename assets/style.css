@@ -275,6 +275,12 @@ p { margin: 0 0 14px; }
   word-break: break-word;
 }
 
+/* 词表 / 错词本里的单词本身就是「点一下读」的按钮 */
+.row-say { text-align: left; padding: 0; cursor: pointer; }
+.row-say:hover { color: var(--accent); }
+.say-mark { font-size: 11px; color: var(--text-faint); margin-left: 6px; vertical-align: 2px; }
+.row-say:hover .say-mark { color: var(--accent); }
+
 .row-body { flex: 1; min-width: 0; }
 .row-phon { color: var(--text-faint); font-size: 14px; }
 .row-zh { color: var(--text); font-size: 16px; }
@@ -373,6 +379,10 @@ footer.site p { margin: 0 0 10px; }
   letter-spacing: 0;
   margin: 8px 0 4px;
 }
+
+/* 单词发音：看起来像一条文字按钮，点一下才读，不自动出声 */
+.study-say { margin: 0 0 2px; }
+.say-btn { padding-left: 2px; align-self: flex-start; }
 
 .choices { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
 

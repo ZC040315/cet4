@@ -284,6 +284,14 @@
       .replace(/"/g, '&quot;');
   }
 
+  /* 读一个单词 / 一句话：有 TTS 就播，没有就安静地什么都不做。
+     所有播放都由点击触发 —— iOS Safari 要求用户手势，且自动出声很吓人。 */
+  function say(text) {
+    if (!text || !window.CET4_TTS || !window.CET4_TTS.supported) return false;
+    window.CET4_TTS.speak(String(text), { rate: 0.9 });
+    return true;
+  }
+
   function planHtml(plan) {
     // 考完了就不再给每日额度：一张说明卡，代替整张档位表和各种「每天 N 个」的算式
     if (plan.over) {
@@ -440,6 +448,7 @@
     addToBook: addToBook,
     planHtml: planHtml,
     esc: esc,
+    say: say,
     savePlan: savePlan,
     exportFile: exportFile,
     importFile: importFile,

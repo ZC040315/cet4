@@ -61,6 +61,9 @@
   }
 
   function judge(knows) {
+    // 组小结页上不能判词：否则方向键会把下一个还没显示出来的词直接标掉，
+    // cursor 继续往前走，用户根本没看见那个词。
+    if (pendingGroupEnd) return;
     var c = cursor();
     if (c >= total) return;
     var w = words[order[c]];

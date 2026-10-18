@@ -116,51 +116,128 @@
     };
   }
 
+  /* 选项的干扰项以前是从 1500 词里完全随机抽的，经常出现
+     「structure 对 adv. 很少地」这种一眼排除的题。现在改成：
+       1. 先看词性（释义开头的 n. / a. / v. …），同词性优先；
+       2. 再按词频位置取附近 ±160 个词，难度接近；
+       3. 第一条释义相同、或中文有连续两字重合的，不能当干扰项
+          （effect / result、might / strength 这种两个都算对，会毁掉题目）。 */
+
+  function posOf(word) {
+    var m = /^([a-z]+)\.\s/.exec(String((word && word.zh) || '').trim());
+    return m ? m[1] : '';
+  }
+
+  function senseKey(text) {
+    var s = String(text || '').replace(/^[a-z]+\.\s*/i, '').trim();
+    return (s.split(/[,，;；]/)[0] || '').trim();
+  }
+
+  function cjkGrams(text) {
+    var s = String(text || '').replace(/^[a-z]+\.\s*/i, '').replace(/[^\u4e00-\u9fa5]/g, '');
+    var set = {};
+    for (var i = 0; i + 1 < s.length; i++) set[s.slice(i, i + 2)] = 1;
+    return set;
+  }
+
+  function sharesGram(a, b) {
+    for (var k in a) if (b[k]) return true;
+    return false;
+  }
+
+  var WORD_INDEX = null;
+  function wordIndex() {
+    if (WORD_INDEX) return WORD_INDEX;
+    var pool = A.coreWords();
+    WORD_INDEX = {};
+    for (var i = 0; i < pool.length; i++) WORD_INDEX[pool[i].w] = i;
+    return WORD_INDEX;
+  }
+
+  function shuffle(list, rnd) {
+    for (var i = list.length - 1; i > 0; i--) {
+      var j = Math.floor(rnd() * (i + 1));
+      var tmp = list[i];
+      list[i] = list[j];
+      list[j] = tmp;
+    }
+    return list;
+  }
+
   function quizFor(word) {
     var pool = A.coreWords();
     var rnd = seeded(hash32(word.w + '|' + A.todayKey() + '|' + MODE));
     var isEn = MODE !== 'new'; // 复习 / 错词本：选项是英文单词
-    var correct = isEn ? word.w : shortZh(word.zh);
     var promptGloss = shortZh(word.zh);
+    var promptSense = senseKey(promptGloss);
+    var promptGrams = cjkGrams(promptGloss);
+    var pos = posOf(word);
+    var correct = isEn ? word.w : promptGloss;
     var picked = [];
     var used = {};
     used[correct] = 1;
 
-    var guard = 0;
-    while (picked.length < 3 && guard < 400) {
-      guard++;
-      var cand = pool[Math.floor(rnd() * pool.length)];
-      if (!cand || cand.w === word.w) continue;
-      var candGloss = shortZh(cand.zh);
-      var text = isEn ? cand.w : candGloss;
-      if (!text || used[text]) continue;
-      // 看中文选单词时，释义一样的词不能当干扰项（finally / eventually 这种）
-      if (isEn && candGloss === promptGloss) continue;
-      used[text] = 1;
-      picked.push(text);
-    }
-    // 兜底：随机挑不满时，按词表顺序补（正常不会走到这里）
-    for (var i = 0; i < pool.length && picked.length < 3; i++) {
-      var pg = shortZh(pool[i].zh);
-      var text2 = isEn ? pool[i].w : pg;
-      if (pool[i].w === word.w || !text2 || used[text2]) continue;
-      if (isEn && pg === promptGloss) continue;
-      used[text2] = 1;
-      picked.push(text2);
+    function usable(w) {
+      if (!w || w.w === word.w) return false;
+      var gloss = shortZh(w.zh);
+      if (!gloss || gloss === promptGloss) return false;
+      if (promptSense && senseKey(gloss) === promptSense) return false;
+      if (sharesGram(promptGrams, cjkGrams(gloss))) return false;
+      var text = isEn ? w.w : gloss;
+      return Boolean(text) && !used[text];
     }
 
-    var options = [{ text: correct, ok: true }].concat(
+    function take(w) {
+      var text = isEn ? w.w : shortZh(w.zh);
+      used[text] = 1;
+      picked.push({ text: text, pos: posOf(w) });
+    }
+
+    // 第一轮：同词性 + 词频相邻
+    var idx = wordIndex()[word.w];
+    if (idx != null) {
+      var from = Math.max(0, idx - 160);
+      var to = Math.min(pool.length - 1, idx + 160);
+      var band = [];
+      for (var i = from; i <= to; i++) {
+        var c = pool[i];
+        if (c.w === word.w) continue;
+        if (pos && posOf(c) !== pos) continue;
+        band.push(c);
+      }
+      shuffle(band, rnd);
+      for (var b = 0; b < band.length && picked.length < 3; b++) {
+        if (usable(band[b])) take(band[b]);
+      }
+    }
+
+    // 第二轮：同词性，放宽到整个词表
+    if (picked.length < 3 && pos) {
+      var same = [];
+      for (var s = 0; s < pool.length; s++) {
+        if (pool[s].w !== word.w && posOf(pool[s]) === pos) same.push(pool[s]);
+      }
+      shuffle(same, rnd);
+      for (var q = 0; q < same.length && picked.length < 3; q++) {
+        if (usable(same[q])) take(same[q]);
+      }
+    }
+
+    // 第三轮：兜底，任意词（释义高度重合的仍然被 usable 挡住）
+    var guard = 0;
+    while (picked.length < 3 && guard < 600) {
+      guard++;
+      var cand = pool[Math.floor(rnd() * pool.length)];
+      if (usable(cand)) take(cand);
+    }
+
+    var options = [{ text: correct, ok: true, pos: pos }].concat(
       picked.map(function (x) {
-        return { text: x, ok: false };
+        return { text: x.text, ok: false, pos: x.pos };
       })
     );
     // 正确项不总在第一个
-    for (var j = options.length - 1; j > 0; j--) {
-      var k = Math.floor(rnd() * (j + 1));
-      var tmp = options[j];
-      options[j] = options[k];
-      options[k] = tmp;
-    }
+    shuffle(options, rnd);
     return { options: options, correct: correct };
   }
 
@@ -278,12 +355,26 @@
       : '<div class="study-word" data-study-word="' + A.esc(word.w) + '">' + A.esc(word.w) + '</div>' +
         '<div class="probe-phon">' + (word.ph ? '/' + A.esc(word.ph) + '/' : '') + '</div>';
 
+    /* 新词可以直接听发音（听的是单词，不会泄露中文）；
+       复习反过来，答完才给听 —— 先播英文就等于把答案念出来了。 */
+    var say = '';
+    if ((MODE === 'new' || answered) && window.CET4_TTS && window.CET4_TTS.supported) {
+      say =
+        '<div class="study-say">' +
+          '<button class="btn btn--sm btn--ghost say-btn" type="button" data-say="' + A.esc(word.w) + '"' +
+          ' aria-label="朗读 ' + A.esc(word.w) + '">' +
+            '<span aria-hidden="true">▶</span> ' + (MODE === 'new' ? '读这个词' : '听正确答案') +
+          '</button>' +
+        '</div>';
+    }
+
     var options = quiz.options.map(function (o, i) {
       var cls = 'choice' + (zhPrompt ? ' choice--en' : '');
       if (answered && o.ok) cls += ' is-right';
       if (answered && !o.ok && i === answered.pick) cls += ' is-wrong';
       return (
-        '<button class="' + cls + '" type="button" data-opt="' + i + '"' + (o.ok ? ' data-ok="1"' : '') +
+        '<button class="' + cls + '" type="button" data-opt="' + i + '" data-pos="' + A.esc(o.pos || '') + '"' +
+        (o.ok ? ' data-ok="1"' : '') +
         (answered ? ' disabled' : '') + '>' +
           '<span class="choice-key">' + LETTERS[i] + '</span>' +
           '<span class="choice-text">' + A.esc(o.text) + '</span>' +
@@ -308,6 +399,7 @@
       '<div class="card" data-study-card>' +
         '<div class="study-kicker">' + KICKERS[MODE] + '</div>' +
         prompt +
+        say +
         '<div class="choices">' + options + '</div>' +
         '<div class="study-feedback' + (answered ? (answered.ok ? ' is-ok' : ' is-no') : '') +
           '" aria-live="polite">' + feedback + '</div>' +
@@ -346,8 +438,12 @@
   }
 
   main.addEventListener('click', function (ev) {
-    var t = ev.target.closest ? ev.target.closest('[data-opt],[data-next],[data-again]') : null;
+    var t = ev.target.closest ? ev.target.closest('[data-opt],[data-next],[data-again],[data-say]') : null;
     if (!t) return;
+    if (t.hasAttribute('data-say')) {
+      A.say(t.getAttribute('data-say'));
+      return;
+    }
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     if (t.hasAttribute('data-opt')) choose(Number(t.getAttribute('data-opt')));
     else if (t.hasAttribute('data-next')) advance();
