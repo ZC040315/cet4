@@ -107,6 +107,7 @@
     main.innerHTML =
       '<h1>短读</h1>' +
       '<p class="lede">一篇 100–150 词。先读，读完对一句中文说明，约 10–15 分钟。</p>' +
+      '<p class="faint">想读长一点的？<a href="intensive.html">精读</a>：280–400 词，带长难句拆解和 3 道理解题。</p>' +
       '<div class="notice">这些短文是本站自产的练习材料，<b>不是真题</b>。' +
       '带下划线的生词点一下就有释义，释义来自词表，不是我们编的。</div>' +
       '<p class="faint">读过 ' + doneCount + ' / ' + list.length + ' 篇</p>' +

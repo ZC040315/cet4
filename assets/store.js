@@ -11,6 +11,7 @@
      days:  { "2026-10-11": { tier, newGoal, newDone, reviewGoal, reviewDone, done, ms } },
      listen:{ clips: { "news-01": { rounds, lastDone, due, replays, blindPlays, words: { word: "recog"|"unknown" } } } },
      readings: { "read-01": { rounds, lastDone, ms } },
+     intensive: { "int-01": { rounds, lastDone, ms, best, total } },
      settings: { theme: "light" | "dark", tier: "std", rate: 0.8, voice: "", listenText: "shown" | "hidden" | "" }
    }
 
@@ -30,6 +31,7 @@
       days: {},
       listen: { clips: {} },
       readings: {},
+      intensive: {},
       settings: { theme: '', tier: '', rate: 0.8, voice: '', listenText: '' },
       updatedAt: null,
     };
@@ -49,6 +51,7 @@
       out.listen = data.listen && typeof data.listen === 'object' ? data.listen : { clips: {} };
       if (!out.listen.clips || typeof out.listen.clips !== 'object') out.listen.clips = {};
       out.readings = data.readings && typeof data.readings === 'object' ? data.readings : {};
+      out.intensive = data.intensive && typeof data.intensive === 'object' ? data.intensive : {};
       out.settings = data.settings && typeof data.settings === 'object' ? data.settings : {};
       if (out.settings.theme === undefined) out.settings.theme = '';
       if (out.settings.tier === undefined) out.settings.tier = '';
@@ -180,6 +183,22 @@
     return rec;
   }
 
+  /* ---------- 精读：每一篇的记录（best/total 记最近一次做题的对错） ---------- */
+
+  function intensive(state, id) {
+    if (!state.intensive || typeof state.intensive !== 'object') state.intensive = {};
+    var rec = state.intensive[id];
+    if (!rec || typeof rec !== 'object') {
+      rec = { rounds: 0, lastDone: '', ms: 0, best: 0, total: 0 };
+      state.intensive[id] = rec;
+    }
+    rec.rounds = Number(rec.rounds) || 0;
+    rec.ms = Number(rec.ms) || 0;
+    rec.best = Number(rec.best) || 0;
+    rec.total = Number(rec.total) || 0;
+    return rec;
+  }
+
   /* ---------- 每个词的间隔重复记录 ---------- */
 
   function entry(state, word, today) {
@@ -217,6 +236,7 @@
     entry: entry,
     clip: clip,
     reading: reading,
+    intensive: intensive,
     counts: counts,
     exportJson: exportJson,
     importJson: importJson,

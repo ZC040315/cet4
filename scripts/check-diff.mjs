@@ -107,7 +107,7 @@ eq([perfect.hit, perfect.total, perfect.missed.length], [9, 9, 0], '整篇全对
 /* ---------- 精听材料本身 ---------- */
 
 eq(CLIPS.length, sandbox.window.CET4_LISTENING.meta.count, 'meta.count 和实际篇数一致')
-eq(CLIPS.filter((c) => c.type === 'passage').length, 3, '听力篇章（分值最高）放了三篇')
+eq(CLIPS.filter((c) => c.type === 'passage').length, 5, '听力篇章（分值最高）放了五篇')
 eq([...new Set(CLIPS.map((c) => c.type))].sort(), ['conversation', 'news', 'passage'], '三种类型都有')
 
 let sentTotal = 0

@@ -11,10 +11,16 @@
 //   3. 机器音 ≠ 考场音响。它练的是「听清并理解」，练不出「适应考场环境」。
 //      后者只能靠正版真题音频，那也是为什么今日页里有一行「真题音频打卡」。
 //
+// **写这些材料的一条硬规矩：不编出处。**
+// 凡是「某大学的研究发现」「一项调查显示」这种话，一律不写 —— 因为我核实不了，
+// 写出来就等于在练习材料里放假信息。短文里出现的说法都是一般性的、常识层面的结论；
+// 具体的数字（价格、时间、楼层、学费）都是故事内部的信息，不是对世界的统计。
+// 要精确数据请查权威来源（规划书第五节：站里出现的每一句英文，你都能知道它是从哪来的）。
+//
 // 类型对应四级听力的三个部分：
 //   news         短篇新闻（A 部分，7 题 49.7 分）
 //   conversation 长对话（B 部分，8 题 56.8 分）
-//   passage      听力篇章（C 部分，10 题 142 分）← 分值最高，本站放了三篇
+//   passage      听力篇章（C 部分，10 题 142 分）← 分值最高，所以这里放得最多（5 篇）
 //
 // 字段说明：
 //   id / type / level(1 最难以下 3 最难) / title(中文标题) / gist(一句中文大意，盲听后对答案用)
@@ -22,10 +28,10 @@
 
 window.CET4_LISTENING = {
   meta: {
-    count: 9,
+    count: 13,
     generated: '2026-10-11',
     source: '本站自产（2026-10-11 写），不是真题',
-    note: '每段都用浏览器语音合成朗读。先盲听抓大意，再逐句听写，然后对照原文分类，最后跟读；第二天重听一遍。',
+    note: '每段都用浏览器语音合成朗读。先盲听抓大意，再逐句听写，然后对照原文分类，最后跟读；第二天重听一遍。13 篇分三种类型，听一周不重样。',
   },
 
   clips: [
@@ -180,11 +186,11 @@ window.CET4_LISTENING = {
       type: 'passage',
       level: 1,
       title: '睡眠不是学习的敌人',
-      gist: '深睡时大脑会把当天学的东西转成长期记忆；实验里睡八小时的人记住的词约为睡四小时的两倍。',
-      focus: '数字对比（eight / four / twice as many）和因果句的抓取',
+      gist: '深睡时大脑会把当天学的东西转成长期记忆；通宵之后书页变得陌生，所以考前那一夜不该熬。',
+      focus: '因果句的抓取，以及「转折 + 补充」两句话的关系',
       tips: [
         'sorts through 连读，听起来像 sortsthrough',
-        'about twice as many 里 as many 很轻，重音在 twice',
+        'part of it 里的 of it 几乎吞掉，靠 part 定位',
         'permanent 是 /ˈpɜːmənənt/，重音在第一音节',
       ],
       sentences: [
@@ -192,12 +198,12 @@ window.CET4_LISTENING = {
         'During deep sleep, the brain sorts through what you learned that day.',
         'It moves important information into long-term memory.',
         'If you cut sleep to study more, you may remember less.',
-        'Researchers at a university in California tested this idea.',
-        'They asked two groups to learn a list of words.',
-        'One group slept eight hours, and the other slept four.',
-        'The next morning, the first group remembered about twice as many words.',
-        'The result does not mean that sleeping alone will teach you anything.',
-        'You still have to study, and you still have to review.',
+        'Anyone who has stayed up all night knows this feeling.',
+        'The next morning, the pages you read are suddenly strange.',
+        'The opposite is also true. After a full night of sleep, difficult material feels lighter.',
+        'So the hours you spend asleep are not hours taken from your study time.',
+        'They are part of it.',
+        'You still have to read the pages, and you still have to review them.',
         'But sleep is when the review becomes permanent.',
         'So the night before an exam is not the best time to stay up.',
       ],
@@ -208,7 +214,7 @@ window.CET4_LISTENING = {
       level: 2,
       title: '城市为什么要多种树',
       gist: '城市种树能降温、挡雨、省空调电，但小树头两三年需要浇水养护，好处要很多年后才显现。',
-      focus: '「不只因为好看」这种转折定位，以及 several / six degrees 这类数字',
+      focus: '「不只因为好看」这种转折定位，以及 several degrees 这类程度表达',
       tips: [
         'not only because 三个词连得很紧，靠 because 抓',
         'several degrees 里的 degrees 重音在后半',
@@ -219,8 +225,8 @@ window.CET4_LISTENING = {
         'A mature tree can cool the air around it by several degrees.',
         'That matters more every year, as summers get hotter.',
         'Trees also slow down rain, which helps when a storm hits.',
-        'One study in a large city found that streets with trees were six degrees cooler.',
-        'The same streets used less electricity for air conditioning.',
+        'Walk down a street with old trees on a hot afternoon, and you feel the difference at once.',
+        'Those streets also use less electricity for air conditioning.',
         'But planting a tree is easier than keeping it alive.',
         'Young trees need water for the first two or three years.',
         'Some cities now ask residents to water the trees near their homes.',
@@ -246,15 +252,117 @@ window.CET4_LISTENING = {
         'A screen invites you to jump around: a message, a link, a video.',
         'Paper offers fewer ways to escape.',
         'That difference changes how much you remember.',
-        'In one experiment, students read the same article in two formats.',
-        'Those who read it on paper recalled more details.',
-        'The researchers did not blame the screens themselves.',
-        'They pointed to the habit of reading quickly and skimming.',
+        'Read the same article on paper and on a screen, and notice which one stays with you.',
+        'For most people, the paper version leaves more behind.',
+        'The screen is not the problem by itself.',
+        'The problem is the habit that grows around it: reading quickly and skimming.',
         'When you skim, you recognize words without building a picture.',
         'A picture is what you remember later.',
         'This does not mean you should avoid screens.',
         'It means that for something you need to keep, slow down.',
         'Read it once quickly, then read it again as if you were explaining it to someone.',
+      ],
+    },
+    {
+      id: 'pass-04',
+      type: 'passage',
+      level: 2,
+      title: '走路为什么帮你想清楚',
+      gist: '走路同时改变血流和注意力，还因为「有明确的结束时间」让脑子敢放松；所以卡住的时候别硬扛，起身走一圈，带上本子。',
+      focus: '因果关系，以及「两件事」的并列结构（The first is… The second is…）',
+      tips: [
+        'two things at once 三个词连得紧，靠 things 定位',
+        'staring at 连读，听起来像 staringat',
+        'wander 是 /ˈwɒndə(r)/，别听成 wonder',
+      ],
+      sentences: [
+        'Many writers say that their best ideas come while they are walking.',
+        'It is not magic. Walking changes two things at once.',
+        'The first is blood flow. A walk of twenty minutes sends more oxygen to the brain.',
+        'The second is attention. Outside, your eyes move from one thing to another.',
+        'That movement keeps you from staring at the same problem.',
+        'When you come back to your desk, the problem looks a little different.',
+        'There is another reason a walk helps: it has a clear end.',
+        'You know you will sit down again in half an hour, so your mind is free to wander.',
+        'Sitting at a desk with no plan makes the same half hour feel heavy.',
+        'So the next time you are stuck, do not force it.',
+        'Stand up, put on your shoes, and walk around the block.',
+        'Take a notebook with you. The idea may arrive before you get home.',
+      ],
+    },
+    {
+      id: 'pass-05',
+      type: 'passage',
+      level: 3,
+      title: '回收这件事比标签复杂',
+      gist: '玻璃能反复熔化，纸只能回收几次，塑料种类太多混在一起就没用了；所以最省能源的一步不是扔进回收桶，而是买之前先问自己两句。',
+      focus: '对比结构（三种材料命运不同）和「不是……而是……」的句式',
+      tips: [
+        'melted down 连读，听起来像 melteddown',
+        'fibres 是 /ˈfaɪbəz/，重音在前',
+        'landfill 重音在第一个音节',
+      ],
+      sentences: [
+        'Most of us put paper, glass and plastic in the same bin and feel better.',
+        'The truth is that these materials do not have the same future.',
+        'Glass is the easiest. It can be melted down again and again without losing quality.',
+        'Paper can be recycled a few times, but each time the fibres get shorter.',
+        'After a few rounds, paper turns into something weaker, like a box or a tissue.',
+        'Plastic is the difficult one.',
+        'There are many kinds of plastic, and they cannot be melted together.',
+        'If one kind is mixed into another, the whole batch becomes useless.',
+        'So a bottle may come back as a bottle, or it may end up buried in a landfill.',
+        'This does not mean recycling is pointless.',
+        'It means the first step is not the bin. It is the question you ask in the shop.',
+        'Before you buy, ask twice: do I need this, and will I use it more than once?',
+        'Those two questions save more energy than any bin ever will.',
+      ],
+    },
+    {
+      id: 'news-04',
+      type: 'news',
+      level: 1,
+      title: '老楼装电梯，钱怎么分',
+      gist: '南片区六栋八十年代的老楼今年装电梯：城市出一半钱，一楼不出、顶楼出最多；第一栋三月动工，大约四个月。',
+      focus: '数字与楼层：six / nineteen eighties / half / March / four months',
+      tips: [
+        'nineteen eighties 里的 eighties 读成 /ˈeɪtiz/',
+        'shared by 连读，听起来像 shareby',
+        'the rest is 里的 is 很轻，靠 rest 定位',
+      ],
+      sentences: [
+        'Six old buildings in the south district will get lifts this year.',
+        'Most of them were built in the nineteen eighties and have six floors.',
+        'For years, residents over seventy had to climb the stairs every day.',
+        'The city pays half of the cost, and the rest is shared by the families.',
+        'Families on the first floor pay nothing, and those on the top floor pay the most.',
+        'Work on the first building starts in March and takes about four months.',
+        'Residents say they will believe it when the doors open.',
+      ],
+    },
+    {
+      id: 'conv-04',
+      type: 'conversation',
+      level: 2,
+      title: '跟房东约修水管',
+      gist: '租客报告厨房水管漏水，跟房东约时间：房东说周四下午派人，租客那天有课，最后谈成先报价再动手，还要顺便看一下一直滴水的龙头。',
+      focus: '请求与条件的口气：Could it be earlier? / If not, can you…? / before he starts',
+      tips: [
+        'started leaking 连读，听起来像 startedleaking',
+        'puddle 是 /ˈpʌdl/',
+        'dripping 里两个 p 只发一个音',
+      ],
+      sentences: [
+        'Hello, is this about the water again?',
+        'Yes. The pipe under the kitchen sink started leaking last night.',
+        'Did you turn off the water under the sink?',
+        'I did, but there is still a small puddle every morning.',
+        'All right. I can send someone on Thursday afternoon.',
+        'Could it be earlier? I have a class on Thursday.',
+        'I will ask. If not, can you leave the key with the neighbour?',
+        'That is fine. Please tell me the price before he starts.',
+        'Of course. The last repair cost eighty yuan, and this one should be similar.',
+        'Good. And could you ask him to check the tap too? It never stops dripping.',
       ],
     },
   ],

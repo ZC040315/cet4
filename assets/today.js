@@ -267,6 +267,7 @@
         readRow +
       '</div>' +
       quotaHtml(pool, mode, key) +
+      '<p class="faint">还有力气？<a href="intensive.html">精读一篇</a> · 280–400 词，带译文、长难句和 3 道题，约 20 分钟。</p>' +
       (mode.id === 'min' ? '' :
         '<button class="btn btn--block" type="button" data-min>只有 10 分钟？→ 今天只做最重要的 10 个词</button>' +
         '<p class="faint">这只是今天降一档，明天自动回到你选的那个档。</p>') +

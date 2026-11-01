@@ -254,11 +254,42 @@
     return (text.match(/[A-Za-z][A-Za-z'’-]*/g) || []).length;
   }
 
-  /* 把短读标注的生词丢进背词的错词本。
+  /* ---------- 精读 ---------- */
+
+  function intensiveTable() {
+    return window.CET4_INTENSIVE && window.CET4_INTENSIVE.articles && window.CET4_INTENSIVE.articles.length
+      ? window.CET4_INTENSIVE
+      : null;
+  }
+
+  function intensiveArticles() {
+    var t = intensiveTable();
+    return t ? t.articles : [];
+  }
+
+  function intensiveById(id) {
+    var list = intensiveArticles();
+    for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+    return null;
+  }
+
+  /* 精读的段落是 {en, zh}，短读是纯字符串，所以不能共用 readingWordCount */
+  function articleParas(a) {
+    return (a.paras || []).map(function (p) {
+      return typeof p === 'string' ? p : (p && p.en) || '';
+    });
+  }
+
+  function articleWordCount(a) {
+    var text = articleParas(a).join(' ');
+    return (text.match(/[A-Za-z][A-Za-z'’-]*/g) || []).length;
+  }
+
+  /* 把阅读里标注的生词丢进背词的错词本。
      这些词一定是四级词表里的（scripts/check-data.mjs 会把关），所以
      seen=1 + box=1 + due 明天，就等于「今天学过、明天开始复习」——
      它会和背词流程用同一套盒号往前走，而不是另起一个生词本。 */
-  function addToBook(word) {
+  function addToBook(word, src) {
     var key = todayKey();
     var added = false;
     S.patch(function (state) {
@@ -271,7 +302,7 @@
       e.due = window.CET4_SRS.addDays(key, 1);
       e.inBook = true;
       e.streakOk = 0;
-      e.src = 'reading';
+      e.src = src || 'reading';
       if (!e.first) e.first = key;
       e.last = key;
     });
@@ -449,6 +480,11 @@
     readings: readings,
     readingById: readingById,
     readingWordCount: readingWordCount,
+    intensiveTable: intensiveTable,
+    intensiveArticles: intensiveArticles,
+    intensiveById: intensiveById,
+    articleParas: articleParas,
+    articleWordCount: articleWordCount,
     addToBook: addToBook,
     planHtml: planHtml,
     esc: esc,

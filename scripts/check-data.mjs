@@ -158,6 +158,102 @@ if (readings && core && leaf) {
   console.log('短读 ' + list.length + ' 篇 · 合计 ' + wordsTotal + ' 词')
 }
 
+/* ---------- 精读材料 ---------- */
+// 精读比短读多四样东西：段落译文、长难句拆解、理解题、更长的正文。
+// 校验重点不是「看起来对不对」，而是页面上真的点得开、答得出来：
+// 标注生词必须在词表里且在正文里；长难句的英文必须能在正文里原样找到；
+// 每道题必须正好四个选项、答案在范围内、正确项只有一个。
+
+let intensive = null
+try {
+  intensive = load('data/intensive.js', 'CET4_INTENSIVE')
+} catch (e) {
+  errors.push(e.message)
+}
+
+if (intensive && core && leaf) {
+  const vocab = new Set()
+  ;[...core.words, ...leaf.words].forEach((w) => vocab.add(w.w))
+
+  const meta = intensive.meta || {}
+  const list = intensive.articles || []
+  if (meta.count !== list.length) errors.push('data/intensive.js 的 meta.count=' + meta.count + '，实际 ' + list.length + ' 篇')
+  if (!meta.source) errors.push('精读数据缺 meta.source')
+
+  const seenIds = new Set()
+  let wordsTotal = 0
+  list.forEach((a, i) => {
+    const where = '精读 ' + (a.id || '第 ' + (i + 1) + ' 篇')
+    if (!a.id || !a.title || !a.gist || !a.topic) errors.push(where + ' 缺字段（id/title/gist/topic）')
+    if (seenIds.has(a.id)) errors.push(where + ' 的 id 重复')
+    seenIds.add(a.id)
+    if (!(a.level >= 1 && a.level <= 3)) errors.push(where + ' 的 level 应该是 1–3')
+
+    const paras = a.paras || []
+    if (paras.length < 4) errors.push(where + ' 至少要四段（精读要比短读长）')
+    const en = []
+    paras.forEach((p, j) => {
+      if (!p || typeof p !== 'object' || !p.en || !p.zh) {
+        errors.push(where + ' 第 ' + (j + 1) + ' 段缺 en 或 zh（精读每段都要有译文）')
+        return
+      }
+      if (/[\u4e00-\u9fa5]/.test(p.en)) errors.push(where + ' 第 ' + (j + 1) + ' 段的 en 里有中文')
+      if (!/[\u4e00-\u9fa5]/.test(p.zh)) errors.push(where + ' 第 ' + (j + 1) + ' 段的 zh 里没有中文')
+      en.push(p.en)
+    })
+    const text = en.join(' ')
+    const count = tokensOf(text).length
+    wordsTotal += count
+    if (count < 220 || count > 420) {
+      errors.push(where + ' 正文 ' + count + ' 词，精读按 220–420 词设计（短读是 100–150）')
+    }
+
+    const inText = new Set(tokensOf(text))
+    const marked = a.words || []
+    if (!marked.length) errors.push(where + ' 没有标注生词')
+    if (marked.length > 8) warns.push(where + ' 标了 ' + marked.length + ' 个生词，一屏里太多会变成负担')
+    marked.forEach((w) => {
+      const key = String(w).toLowerCase()
+      if (!inText.has(key)) errors.push(where + ' 标注的生词「' + w + '」在正文里没有出现')
+      if (!vocab.has(key)) errors.push(where + ' 标注的生词「' + w + '」在四级词表里查不到释义，页面上会点不开')
+    })
+
+    const sents = a.sentences || []
+    if (sents.length < 3) errors.push(where + ' 至少要拆三句长难句')
+    sents.forEach((s, j) => {
+      if (!s || !s.en) errors.push(where + ' 第 ' + (j + 1) + ' 个长难句缺 en')
+      else if (!text.includes(s.en)) {
+        errors.push(where + ' 第 ' + (j + 1) + ' 个长难句的英文在正文里找不到（改正文时把句子改坏了？）')
+      }
+      if (!s || !s.note || !s.zh) errors.push(where + ' 第 ' + (j + 1) + ' 个长难句缺 note 或 zh')
+    })
+
+    const qs = a.questions || []
+    if (qs.length < 2) errors.push(where + ' 至少要两道理解题')
+    const answers = new Set()
+    qs.forEach((q, j) => {
+      const qw = where + ' 第 ' + (j + 1) + ' 题'
+      if (!q || !q.q) errors.push(qw + ' 缺题干')
+      const opts = (q && q.options) || []
+      if (opts.length !== 4) errors.push(qw + ' 应该有 4 个选项，现在是 ' + opts.length + ' 个')
+      if (new Set(opts.map((o) => String(o))).size !== opts.length) errors.push(qw + ' 有两个一模一样的选项')
+      opts.forEach((o, k) => {
+        if (!String(o || '').trim()) errors.push(qw + ' 的第 ' + (k + 1) + ' 个选项是空的')
+      })
+      if (!(q && Number.isInteger(q.answer) && q.answer >= 0 && q.answer < opts.length)) {
+        errors.push(qw + ' 的 answer 不是 0–3 的整数（现在 ' + (q && q.answer) + '）')
+      } else {
+        answers.add(q.answer)
+      }
+      if (!q || !q.explain) errors.push(qw + ' 缺 explain（对答案时页面上要显示为什么）')
+    })
+    if (answers.size < 2 && qs.length > 1) warns.push(where + ' 所有题的正确答案都在同一个位置，猜一下就能全对')
+
+    if (/\u2014/.test(text)) warns.push(where + ' 正文里有破折号，朗读/排版上容易被当成断句')
+  })
+  console.log('精读 ' + list.length + ' 篇 · 合计 ' + wordsTotal + ' 词')
+}
+
 if (core) console.log('主干词 ' + core.words.length + ' 个')
 if (leaf) console.log('叶子词 ' + leaf.words.length + ' 个')
 if (core && leaf) console.log('合计 ' + (core.words.length + leaf.words.length) + ' 个')

@@ -62,6 +62,12 @@
     var doneReadings = allReadings.filter(function (r) {
       return readRec[r.id] && readRec[r.id].rounds;
     });
+    // 精读：做过几篇
+    var allInt = A.intensiveArticles();
+    var intRec = state.intensive || {};
+    var doneInt = allInt.filter(function (a) {
+      return intRec[a.id] && intRec[a.id].rounds;
+    });
 
     // 最近 14 天：完成的实心、做了一部分的对半、没动的空着
     var strip = [];
@@ -158,6 +164,8 @@
         '<p class="faint">主干词一共 ' + words.length + ' 个，其中摸底标「不认识」的 ' + A.summary().unknown + ' 个。</p>' +
         '<p class="muted" style="margin-top:12px">短读读过 <b class="num">' + doneReadings.length + '</b> / ' +
         allReadings.length + ' 篇。<a href="reading.html">去读一篇</a></p>' +
+        '<p class="muted" style="margin-top:8px">精读读完 <b class="num">' + doneInt.length + '</b> / ' +
+        allInt.length + ' 篇。<a href="intensive.html">去精读一篇</a></p>' +
       '</div>';
   }
 

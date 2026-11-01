@@ -9,6 +9,10 @@
 //      所以这里标的每个词都必须在四级词表里 —— scripts/check-data.mjs 会把关。
 //   3. 每篇 100–150 词，同样由 scripts/check-data.mjs 数出来把关。
 //
+// **同样不编出处**：不写「某大学的研究发现」。短文里的说法都是一般性的常识结论；
+// 出现的数字是故事内部的信息（价格、时间、里程），不是对世界的统计。
+// 要精确数据请查权威来源 —— 练习材料不该假装自己是论文。
+//
 // 字段说明：
 //   id / topic(主题) / title(中文标题) / level(1 最易 3 最难)
 //   gist(一句中文说明，读完再对，别提前剧透)
@@ -17,7 +21,7 @@
 
 window.CET4_READINGS = {
   meta: {
-    count: 6,
+    count: 9,
     generated: '2026-10-11',
     source: '本站自产（2026-10-11 写），不是真题',
     note: '每篇 100–150 词，标出的生词能在词表里查到释义。读完先对一句中文说明，再决定要不要把生词丢进错词本。',
@@ -29,11 +33,11 @@ window.CET4_READINGS = {
       topic: '科学与环境',
       title: '灯光与候鸟',
       level: 2,
-      gist: '城市灯光会让夜间迁徙的鸟迷失方向；关掉高楼灯光之后撞楼数量减少一半以上，而代价很小。',
+      gist: '城市灯光会让夜间迁徙的鸟迷失方向；关掉高楼灯光之后撞楼的鸟明显变少，而代价很小。',
       words: ['instinct', 'artificial', 'confuse', 'safety', 'circle'],
       paras: [
         'Every autumn, millions of birds fly south at night. For a long time, people believed that they found their way by instinct alone. Now researchers know that the artificial light of cities plays a part too.',
-        'Bright buildings confuse the birds. Instead of keeping to the dark sky, many turn toward the light and circle around it for hours. Some hit the glass. A study in one American city found that switching off the lights of tall buildings during migration season cut the number of crashes by more than half.',
+        'Bright buildings confuse the birds. Instead of keeping to the dark sky, many turn toward the light and circle around it for hours. Some hit the glass. Where cities turn off the lights of tall buildings during migration season, far fewer birds are killed.',
         'The cost of the change is small. A few owners worry about safety, but most offices simply turn off their lights after eleven at night. The birds, it seems, only need one dark window to find their way again.',
       ],
     },
@@ -100,6 +104,45 @@ window.CET4_READINGS = {
         'Almost every student has a story about a group project in which one person did nothing. The others complain, but the grade is shared, so nothing changes.',
         'Researchers call this the free-rider problem. It appears whenever a reward is given to a group rather than to a single individual. The larger the group, the easier it is for one person to stay quiet and let others carry the work.',
         'There is a simple fix, though it feels uncomfortable at first: at the first meeting, write down who will do what, with dates. A written plan makes the work visible. When everyone can see who has failed to deliver, most people do their part - not because they are afraid, but because they were asked in a way they cannot ignore.',
+      ],
+    },
+    {
+      id: 'read-07',
+      topic: '生活常识',
+      title: '很多花是浇死的',
+      level: 1,
+      gist: '叶子发黄掉光看起来像缺水，其实常常是浇水太多把根泡坏了；浇之前先用手指试一下土，别急着加水。',
+      words: ['soil', 'pour', 'pot', 'finger', 'extra'],
+      paras: [
+        'A plant that dies in a bright room is more often drowned than thirsty. Water fills the small spaces in the soil where air should be, and the roots slowly stop working.',
+        'The sign is easy to miss. The leaves turn yellow and fall, which looks exactly like the result of too little water. So the owner adds more, and the plant goes faster.',
+        'The fix is not a better plant. It is less water and a longer wait. Put a finger in the soil before you pour. If it still feels wet, walk away. Most house plants need less than people believe, and they grow better in a pot that lets extra water out.',
+      ],
+    },
+    {
+      id: 'read-08',
+      topic: '心理与日常',
+      title: '排队时时间会变慢',
+      level: 2,
+      gist: '等十分钟比走十分钟难受，一半是因为没事做，另一半是因为不知道要等多久；给自己一个形状（数人数、读四页），等待就不再是空的。',
+      words: ['queue', 'exactly', 'count', 'trick', 'shape'],
+      paras: [
+        'Standing in a queue for ten minutes feels longer than walking for ten minutes. Part of the reason is that a queue gives you nothing to do but wait.',
+        'The other part is that you do not know when it will end. A queue that moves in small steps feels shorter than one that stands still, even when both take the same time. This is why airports tell you how long the line is, and why a lift with mirrors annoys fewer people.',
+        'You can use the same trick on yourself. When you have to wait, give the time a shape: count the people in front of you, or decide to read exactly four pages. The wait does not get shorter, but it stops being empty.',
+      ],
+    },
+    {
+      id: 'read-09',
+      topic: '学习方法',
+      title: '大任务要切小才动得起来',
+      level: 2,
+      gist: '拖不是因为难，是因为大：大任务没有明显的第一个动作。把第一步小到无聊（打开文件写标题、复习十个词），因为在坐下那一刻之前，开始才是最贵的。',
+      words: ['obvious', 'cure', 'refuse', 'climb', 'review'],
+      paras: [
+        'Most people do not put off a task because it is hard. They put it off because it is large. A large task has no obvious first step, so the mind slides away to something easier.',
+        'The cure is to make the first step small enough to be boring. Not write the report, but open the file and write the title. Not study for the exam, but review ten words. A step that takes two minutes is hard to refuse.',
+        'This works for a simple reason: starting is the expensive part. Once you are sitting down with the file open, the next step is much easier to take. The trick is not to plan the whole climb. It is to put one foot on the first step before you decide anything else.',
       ],
     },
   ],
