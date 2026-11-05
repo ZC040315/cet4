@@ -130,6 +130,9 @@
     main.innerHTML =
       '<h1>词表</h1>' +
       '<p class="lede">' + A.esc(head.note || '') + '</p>' +
+      '<div class="notice"><p>背得动单词、但不确定怎么读？' +
+        '到<a href="phonetics.html">音标</a>把 48 个音标过一遍 —— 6 组，一个音标一屏，' +
+        '例词用的就是这张词表里的词。</p></div>' +
       '<div class="chips">' + layerChips + '</div>' +
       '<div class="toolbar">' +
         '<input class="search" type="search" placeholder="搜单词或释义" value="' + A.esc(view.q) + '" data-q>' +

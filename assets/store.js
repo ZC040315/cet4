@@ -12,6 +12,7 @@
      listen:{ clips: { "news-01": { rounds, lastDone, due, replays, blindPlays, words: { word: "recog"|"unknown" } } } },
      readings: { "read-01": { rounds, lastDone, ms } },
      intensive: { "int-01": { rounds, lastDone, ms, best, total } },
+     phon:  { "ii": { learned, lastDone, rounds, best, total } },
      settings: { theme: "light" | "dark", tier: "std", rate: 0.8, voice: "", listenText: "shown" | "hidden" | "" }
    }
 
@@ -32,6 +33,7 @@
       listen: { clips: {} },
       readings: {},
       intensive: {},
+      phon: {},
       settings: { theme: '', tier: '', rate: 0.8, voice: '', listenText: '' },
       updatedAt: null,
     };
@@ -52,6 +54,7 @@
       if (!out.listen.clips || typeof out.listen.clips !== 'object') out.listen.clips = {};
       out.readings = data.readings && typeof data.readings === 'object' ? data.readings : {};
       out.intensive = data.intensive && typeof data.intensive === 'object' ? data.intensive : {};
+      out.phon = data.phon && typeof data.phon === 'object' ? data.phon : {};
       out.settings = data.settings && typeof data.settings === 'object' ? data.settings : {};
       if (out.settings.theme === undefined) out.settings.theme = '';
       if (out.settings.tier === undefined) out.settings.tier = '';
@@ -199,6 +202,22 @@
     return rec;
   }
 
+  /* ---------- 音标：每个音标的记录（学过 / 听辨得分） ---------- */
+
+  function phon(state, id) {
+    if (!state.phon || typeof state.phon !== 'object') state.phon = {};
+    var rec = state.phon[id];
+    if (!rec || typeof rec !== 'object') {
+      rec = { learned: false, lastDone: '', rounds: 0, best: 0, total: 0 };
+      state.phon[id] = rec;
+    }
+    rec.learned = !!rec.learned;
+    rec.rounds = Number(rec.rounds) || 0;
+    rec.best = Number(rec.best) || 0;
+    rec.total = Number(rec.total) || 0;
+    return rec;
+  }
+
   /* ---------- 每个词的间隔重复记录 ---------- */
 
   function entry(state, word, today) {
@@ -237,6 +256,7 @@
     clip: clip,
     reading: reading,
     intensive: intensive,
+    phon: phon,
     counts: counts,
     exportJson: exportJson,
     importJson: importJson,

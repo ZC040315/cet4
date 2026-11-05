@@ -254,6 +254,122 @@ if (intensive && core && leaf) {
   console.log('精读 ' + list.length + ' 篇 · 合计 ' + wordsTotal + ' 词')
 }
 
+/* ---------- 音标 ---------- */
+// 音标是「教」的内容，错一个音标就是教错一个音，所以这里查得比别处严：
+// 例词必须在词表里（否则点不出释义、也听不到熟悉的词）；
+// 例词的注音必须真的含有这个音（用 48 个符号贪心切分，切不开就报错）；
+// 干扰项必须真的不含这个音（否则那一道题有两个正确答案）。
+
+let phon = null
+try {
+  phon = load('data/phonetics.js', 'CET4_PHON')
+} catch (e) {
+  errors.push(e.message)
+}
+
+if (phon && core && leaf) {
+  const vocab = new Set()
+  ;[...core.words, ...leaf.words].forEach((w) => vocab.add(w.w))
+
+  const meta = phon.meta || {}
+  const symbols = meta.symbols || []
+  const groups = phon.groups || []
+  const list = phon.phonemes || []
+  // 和 data/phonetics.js 里的 type 一一对应：单元音、双元音、爆破、摩擦、破擦、鼻音、舌侧、半元音
+  const TYPES = ['vowel', 'dip', 'stop', 'fric', 'aff', 'nasal', 'lat', 'semiv']
+
+  if (meta.count !== list.length) errors.push('data/phonetics.js 的 meta.count=' + meta.count + '，实际 ' + list.length + ' 个')
+  if (!meta.source) errors.push('音标数据缺 meta.source')
+  if (symbols.length !== list.length) errors.push('meta.symbols 有 ' + symbols.length + ' 个，音标有 ' + list.length + ' 个')
+  if (new Set(symbols).size !== symbols.length) errors.push('meta.symbols 里有重复的符号')
+
+  // 贪心切分：长的符号优先（tʃ、iː 这种两个字符的必须整体匹配）
+  const sorted = symbols.slice().sort((a, b) => b.length - a.length)
+  function tokens(ipa) {
+    const s = String(ipa || '').replace(/[ˈˌ.]/g, '')
+    const out = []
+    let i = 0
+    while (i < s.length) {
+      let hit = ''
+      for (const sym of sorted) {
+        if (s.startsWith(sym, i)) { hit = sym; break }
+      }
+      if (!hit) return null
+      out.push(hit)
+      i += hit.length
+    }
+    return out
+  }
+
+  const seenIds = new Set()
+  const seenSyms = new Set()
+  list.forEach((p, i) => {
+    const where = '音标 ' + (p && p.id ? p.id : '第 ' + (i + 1) + ' 个')
+    if (!p || !p.id || !p.sym || !p.name) { errors.push(where + ' 缺字段（id/sym/name）'); return }
+    if (seenIds.has(p.id)) errors.push(where + ' 的 id 重复')
+    seenIds.add(p.id)
+    if (seenSyms.has(p.sym)) errors.push(where + ' 的 sym 重复：' + p.sym)
+    seenSyms.add(p.sym)
+    if (symbols.indexOf(p.sym) < 0) errors.push(where + ' 的 sym 不在 meta.symbols 里：' + p.sym)
+    if (TYPES.indexOf(p.type) < 0) errors.push(where + ' 的 type 不在允许的取值里：' + p.type)
+
+    const tips = p.tip || []
+    if (tips.length < 2) errors.push(where + ' 至少要两条发音要点')
+    tips.forEach((t, k) => { if (!String(t || '').trim()) errors.push(where + ' 的第 ' + (k + 1) + ' 条要点是空的') })
+
+    const ex = p.ex || []
+    if (ex.length !== 3) errors.push(where + ' 应该有 3 个例词，现在 ' + ex.length + ' 个')
+    ex.forEach((e, k) => {
+      const ew = where + ' 的第 ' + (k + 1) + ' 个例词'
+      if (!e || !e.w || !e.ipa) { errors.push(ew + ' 缺 w 或 ipa'); return }
+      if (!vocab.has(e.w)) errors.push(ew + '（' + e.w + '）不在四级词表里，页面上点不出释义')
+      const tk = tokens(e.ipa)
+      if (!tk) errors.push(ew + ' 的注音切不开（有不在 48 符号表里的字符）：' + e.ipa)
+      else if (tk.indexOf(p.sym) < 0) errors.push(ew + ' 的注音里没有 ' + p.sym + '：' + e.ipa)
+    })
+
+    const c = p.contrast || {}
+    if (!c.id) errors.push(where + ' 缺 contrast.id（最容易混的那个音）')
+    else if (c.id === p.id) errors.push(where + ' 的 contrast.id 指向自己')
+    if (!c.note) errors.push(where + ' 缺 contrast.note')
+
+    const dis = p.distract || []
+    if (dis.length !== 3) errors.push(where + ' 应该有 3 个干扰项，现在 ' + dis.length + ' 个')
+    dis.forEach((d, k) => {
+      const dw = where + ' 的第 ' + (k + 1) + ' 个干扰项'
+      if (!d || !d.w || !d.ipa) { errors.push(dw + ' 缺 w 或 ipa'); return }
+      if (!vocab.has(d.w)) errors.push(dw + '（' + d.w + '）不在四级词表里')
+      const tk = tokens(d.ipa)
+      if (!tk) errors.push(dw + ' 的注音切不开：' + d.ipa)
+      else if (tk.indexOf(p.sym) >= 0) errors.push(dw + ' 的注音里含 ' + p.sym + '，那这道题会有两个正确答案')
+    })
+  })
+
+  // contrast 必须指向真实存在的音标（全部收齐后再查）
+  list.forEach((p) => {
+    const c = (p && p.contrast) || {}
+    if (c.id && !seenIds.has(c.id)) errors.push('音标 ' + p.id + ' 的 contrast.id 不存在：' + c.id)
+  })
+
+  // 每个音标必须恰好属于一个组
+  const grouped = new Map()
+  groups.forEach((g) => {
+    const ids = (g && g.ids) || []
+    if (!g || !g.id || !g.name) errors.push('音标组缺字段（id/name）')
+    if (!ids.length) errors.push('音标组 ' + (g && g.id) + ' 里没有音标')
+    ids.forEach((id) => {
+      if (grouped.has(id)) errors.push('音标 ' + id + ' 同时出现在组 ' + grouped.get(id) + ' 和 ' + g.id)
+      grouped.set(id, g.id)
+      if (!seenIds.has(id)) errors.push('音标组 ' + g.id + ' 里的 ' + id + ' 不存在')
+    })
+  })
+  list.forEach((p) => {
+    if (p && p.id && !grouped.has(p.id)) errors.push('音标 ' + p.id + ' 不属于任何一组')
+  })
+
+  console.log('音标 ' + list.length + ' 个 · ' + groups.length + ' 组')
+}
+
 if (core) console.log('主干词 ' + core.words.length + ' 个')
 if (leaf) console.log('叶子词 ' + leaf.words.length + ' 个')
 if (core && leaf) console.log('合计 ' + (core.words.length + leaf.words.length) + ' 个')

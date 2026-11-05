@@ -68,6 +68,12 @@
     var doneInt = allInt.filter(function (a) {
       return intRec[a.id] && intRec[a.id].rounds;
     });
+    // 音标：学过几个
+    var allPhon = A.phonemes();
+    var phonRec = state.phon || {};
+    var learnedPhon = allPhon.filter(function (p) {
+      return phonRec[p.id] && phonRec[p.id].learned;
+    });
 
     // 最近 14 天：完成的实心、做了一部分的对半、没动的空着
     var strip = [];
@@ -166,6 +172,10 @@
         allReadings.length + ' 篇。<a href="reading.html">去读一篇</a></p>' +
         '<p class="muted" style="margin-top:8px">精读读完 <b class="num">' + doneInt.length + '</b> / ' +
         allInt.length + ' 篇。<a href="intensive.html">去精读一篇</a></p>' +
+        (allPhon.length
+          ? '<p class="muted" style="margin-top:8px">音标学过 <b class="num">' + learnedPhon.length + '</b> / ' +
+            allPhon.length + ' 个。<a href="phonetics.html">去学音标</a></p>'
+          : '') +
       '</div>';
   }
 

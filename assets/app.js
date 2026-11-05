@@ -285,6 +285,39 @@
     return (text.match(/[A-Za-z][A-Za-z'’-]*/g) || []).length;
   }
 
+  /* ---------- 音标 ---------- */
+
+  function phonTable() {
+    return window.CET4_PHON && window.CET4_PHON.phonemes && window.CET4_PHON.phonemes.length
+      ? window.CET4_PHON
+      : null;
+  }
+
+  function phonemes() {
+    var t = phonTable();
+    return t ? t.phonemes : [];
+  }
+
+  function phonGroups() {
+    var t = phonTable();
+    return t && t.groups ? t.groups : [];
+  }
+
+  function phonemeById(id) {
+    var list = phonemes();
+    for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+    return null;
+  }
+
+  /* 一个音标属于哪一组：用来做「上一组 / 下一组」和分组进度 */
+  function phonGroupOf(id) {
+    var gs = phonGroups();
+    for (var i = 0; i < gs.length; i++) {
+      if ((gs[i].ids || []).indexOf(id) >= 0) return gs[i];
+    }
+    return null;
+  }
+
   /* 把阅读里标注的生词丢进背词的错词本。
      这些词一定是四级词表里的（scripts/check-data.mjs 会把关），所以
      seen=1 + box=1 + due 明天，就等于「今天学过、明天开始复习」——
@@ -485,6 +518,11 @@
     intensiveById: intensiveById,
     articleParas: articleParas,
     articleWordCount: articleWordCount,
+    phonTable: phonTable,
+    phonemes: phonemes,
+    phonGroups: phonGroups,
+    phonemeById: phonemeById,
+    phonGroupOf: phonGroupOf,
     addToBook: addToBook,
     planHtml: planHtml,
     esc: esc,

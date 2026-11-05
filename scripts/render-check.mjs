@@ -43,7 +43,7 @@ function loadWords() {
 const PARTS = (() => {
   const sandbox = { window: {}, console }
   vm.createContext(sandbox)
-  for (const f of ['assets/plan.js', 'assets/srs.js', 'data/listening.js', 'data/readings.js', 'data/intensive.js']) {
+  for (const f of ['assets/plan.js', 'assets/srs.js', 'data/listening.js', 'data/readings.js', 'data/intensive.js', 'data/phonetics.js']) {
     vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), sandbox, { filename: f })
   }
   return sandbox.window
@@ -55,6 +55,11 @@ const READ_TOTAL = PARTS.CET4_READINGS.readings.length
 const INT_TOTAL = PARTS.CET4_INTENSIVE.articles.length
 const INT_FIRST = PARTS.CET4_INTENSIVE.articles[0]
 const INT_QS = INT_FIRST.questions.length
+const PHON_TOTAL = PARTS.CET4_PHON.phonemes.length
+const PHON_FIRST = PARTS.CET4_PHON.phonemes[0]
+const PHON_GROUP_COUNT = PARTS.CET4_PHON.groups.length
+// 总览用第一个音标当「学过」的样本，走流程用第二个（这样它的记录是空的，能验「没全对不算学过」）
+const PHON_FLOW = PARTS.CET4_PHON.phonemes[1]
 
 function defaultModeFor(unknown) {
   const rec = PLAN.planFor({ unknown, remainingScan: 0 }).recommended
@@ -196,6 +201,9 @@ const SEED_STUDY = (() => {
     intensive: {
       [INT_FIRST.id]: { rounds: 1, lastDone: dayKey(-1), ms: 900000, best: INT_QS - 1, total: INT_QS },
     },
+    phon: {
+      [PHON_FIRST.id]: { learned: true, lastDone: dayKey(-1), rounds: 1, best: 4, total: 4 },
+    },
     settings: { theme: '', tier: '' },
   }
 })()
@@ -236,6 +244,9 @@ const FACTS = {
   intTotal: INT_TOTAL,
   intQs: INT_QS,
   intBest: INT_QS - 1,
+  phonTotal: PHON_TOTAL,
+  phonLearned: 1,
+  phonGroups: PHON_GROUP_COUNT,
   studyRate: Math.round((2 / 3) * 100), // 开始那天到今天共 3 天，完成 2 天
   daysLeft: PLAN.daysLeft(),
   // 今日页的默认档位、复习上限，都由「摸底结果 + 四档」算出来，不写死
@@ -294,6 +305,8 @@ const PAGES = [
   { file: 'reading.html', name: 'read-flow', test: 'READ_FLOW', seed: 'study', hash: '?id=read-01' },
   { file: 'intensive.html', name: 'int-list', test: 'INT_LIST', seed: 'study' },
   { file: 'intensive.html', name: 'int-flow', test: 'INT_FLOW', seed: 'study', hash: '?id=' + INT_FIRST.id },
+  { file: 'phonetics.html', name: 'phon-overview', test: 'PHON_OVERVIEW', seed: 'study', needsData: false },
+  { file: 'phonetics.html', name: 'phon-one', test: 'PHON_ONE', seed: 'study', hash: '?id=' + PHON_FLOW.id, needsData: false },
   { file: 'about.html', name: 'about', test: 'ABOUT', needsData: false },
 ]
 
@@ -1234,6 +1247,127 @@ const READ_FLOW_TEST = `(() => {
 
 // ---------- 进度页 ----------
 
+// ---------- 音标 ----------
+
+const PHON_OVERVIEW_TEST = `(() => {
+  const problems = [];
+  const info = {};
+  const text = document.body.innerText;
+  info.chips = document.querySelectorAll('[data-chip]').length;
+  info.groups = document.querySelectorAll('.phon-grid').length;
+  info.doneChips = document.querySelectorAll('.phon-chip.is-done').length;
+  info.saysCount = new RegExp('学过 ${FACTS.phonLearned} / ${FACTS.phonTotal} 个').test(text);
+  info.nextLink = !!document.querySelector('a[href*="phonetics.html?id="]');
+  info.navCurrent = (document.querySelector('.nav a[aria-current="page"]') || {}).textContent || '';
+  info.saysDJ = /DJ/.test(text);
+  info.notEcdict = /不用/.test(text) && /ECDICT/.test(text);
+  info.groupTitles = Array.from(document.querySelectorAll('.phon-grid'))
+    .map((g) => (g.parentNode.querySelector('h2') || {}).textContent || '')
+    .map((s) => s.replace(/\\s+/g, ' ').trim());
+  if (info.chips !== ${FACTS.phonTotal}) problems.push('总览应该有 ${FACTS.phonTotal} 个音标，实际 ' + info.chips);
+  if (info.groups !== ${FACTS.phonGroups}) problems.push('应该分成 ${FACTS.phonGroups} 组，实际 ' + info.groups);
+  if (info.doneChips !== ${FACTS.phonLearned}) problems.push('学过的那个音标没有打勾，实际勾了 ' + info.doneChips + ' 个');
+  if (!info.saysCount) problems.push('没有说话「学过 ${FACTS.phonLearned} / ${FACTS.phonTotal} 个」');
+  if (!info.nextLink) problems.push('没有「继续下一个」的入口');
+  if (info.navCurrent !== '音标') problems.push('导航里没有把「音标」标成当前页，实际「' + info.navCurrent + '」');
+  if (!info.saysDJ) problems.push('没有说明这是 DJ 音标');
+  if (!info.notEcdict) problems.push('没有说明不用词表里的 ECDICT 原始注音');
+  return { info, problems };
+})()`
+
+const PHON_ONE_TEST = `(() => {
+  const problems = [];
+  const info = {};
+  const p = window.CET4_PHON.phonemes.filter((x) => x.id === '${PHON_FLOW.id}')[0];
+  const rec = () => {
+    const raw = JSON.parse(localStorage.getItem('cet4.v1') || '{}');
+    return (raw.phon || {})[p.id] || {};
+  };
+  const scoreEl = () => document.querySelector('[data-score]');
+  const optOf = (qi, w) => document.querySelector('[data-pick="' + qi + '"][data-w="' + w + '"]');
+
+  info.sym = (document.querySelector('.phon-sym') || {}).textContent || '';
+  info.tips = document.querySelectorAll('.phon-tips li').length;
+  info.words = document.querySelectorAll('.phon-word').length;
+  info.sayButtons = document.querySelectorAll('[data-say]').length;
+  info.pairSides = document.querySelectorAll('.phon-side').length;
+  info.quizCards = document.querySelectorAll('[data-quiz]').length;
+  info.questions = document.querySelectorAll('[data-q]').length;
+  info.optsPerQ = Array.from(document.querySelectorAll('[data-q]')).map((q) => q.querySelectorAll('.phon-opt').length);
+  info.scoreBefore = !!scoreEl();
+
+  if (info.sym.indexOf('/' + p.sym + '/') < 0) problems.push('页首没有显示 /' + p.sym + '/');
+  if (info.tips < 2) problems.push('「怎么发」至少要两条，实际 ' + info.tips);
+  if (info.words !== 3) problems.push('例词应该是 3 个，实际 ' + info.words);
+  if (info.sayButtons < 4) problems.push('例词和对比词都应该能点读，实际只有 ' + info.sayButtons + ' 个按钮');
+  if (info.pairSides !== 2) problems.push('「最容易混」应该是左右两栏，实际 ' + info.pairSides + ' 栏');
+  if (info.quizCards !== 1) problems.push('听辨卡应该有 1 张，实际 ' + info.quizCards);
+  if (info.questions !== 3) problems.push('听辨应该有 3 题，实际 ' + info.questions);
+  if (info.optsPerQ.some((n) => n !== 4)) problems.push('每道听辨题应该正好 4 个选项，实际 ' + info.optsPerQ.join('/'));
+  if (info.scoreBefore) problems.push('一题没答的时候不该出现得分');
+
+  // 第一题故意选错，后两题选对：2 / 3，不算学过
+  info.missing = [];
+  p.ex.forEach((e, qi) => {
+    let w = e.w;
+    if (qi === 0) {
+      const wrong = Array.from(document.querySelectorAll('[data-pick="0"]')).filter((b) => b.getAttribute('data-w') !== e.w)[0];
+      if (!wrong) { info.missing.push(qi + ':no-wrong'); return; }
+      w = wrong.getAttribute('data-w');
+    }
+    const el = optOf(qi, w);
+    if (!el) {
+      info.missing.push(qi + ':' + w + '（有 ' +
+        Array.from(document.querySelectorAll('[data-pick="' + qi + '"]')).map((b) => b.getAttribute('data-w')).join('/') + '）');
+      return;
+    }
+    el.click();
+  });
+  info.score = scoreEl() ? scoreEl().getAttribute('data-score') : null;
+  info.markOk = document.querySelectorAll('.mark-ok').length;
+  info.markNo = document.querySelectorAll('.mark-no').length;
+  info.learnedAfterWrong = !!rec().learned;
+  info.roundsAfterWrong = rec().rounds || 0;
+  if (info.score !== '2') problems.push('错一题应该得 2 分，实际 ' + info.score);
+  if (info.markOk !== 2) problems.push('应该有两个「对」的标记，实际 ' + info.markOk);
+  if (info.markNo !== 1) problems.push('应该有一个「错」的标记，实际 ' + info.markNo);
+  if (info.learnedAfterWrong) problems.push('没有全对就把它记成「学过」了');
+  if (info.roundsAfterWrong !== 1) problems.push('答完一轮应该记 1 轮，实际 ' + info.roundsAfterWrong);
+
+  // 再练一遍：选择清空、题目可再点
+  document.querySelector('[data-retry]').click();
+  info.scoreAfterRetry = !!scoreEl();
+  info.disabledAfterRetry = document.querySelectorAll('.phon-opt[disabled]').length;
+  if (info.scoreAfterRetry) problems.push('点「再练一遍」之后得分还在');
+  if (info.disabledAfterRetry) problems.push('点「再练一遍」之后选项还是锁着的');
+
+  // 这次全对：得分 3，自动记为学过
+  p.ex.forEach((e, qi) => { const el = optOf(qi, e.w); if (el) el.click(); else info.missing.push('all:' + qi + ':' + e.w); });
+  info.scoreAll = scoreEl() ? scoreEl().getAttribute('data-score') : null;
+  info.learnedAfterAll = !!rec().learned;
+  info.best = rec().best;
+  info.total = rec().total;
+  info.lastDone = rec().lastDone;
+  if (info.scoreAll !== '3') problems.push('全对应得 3 分，实际 ' + info.scoreAll);
+  if (!info.learnedAfterAll) problems.push('全对之后没有自动记为「学过」');
+  if (info.best !== 3) problems.push('记录里的最好成绩应该是 3，实际 ' + info.best);
+  if (info.total !== 3) problems.push('记录里的总题数应该是 3，实际 ' + info.total);
+  if (info.lastDone !== window.CET4_APP.todayKey()) problems.push('记录里的日期不是今天：' + info.lastDone);
+
+  // 上一个 / 下一个：这一个是第二个音标，两边都该有
+  const navLinks = Array.from(document.querySelectorAll('.phon-nav a'));
+  info.navHrefs = navLinks.map((a) => a.getAttribute('href'));
+  const before = window.CET4_PHON.phonemes[0];
+  const after = window.CET4_PHON.phonemes[2];
+  if (info.navHrefs.indexOf('phonetics.html?id=' + before.id) < 0) {
+    problems.push('没有「上一个」的链接：' + info.navHrefs.join(' '));
+  }
+  if (info.navHrefs.indexOf('phonetics.html?id=' + after.id) < 0) {
+    problems.push('没有「下一个」的链接：' + info.navHrefs.join(' '));
+  }
+  return { info, problems };
+})()`
+
 const PROGRESS_TEST = `(() => {
   const problems = [];
   const info = {};
@@ -1270,6 +1404,9 @@ const PROGRESS_TEST = `(() => {
   }
   if (!new RegExp('精读读完 ${FACTS.intDone} / ${FACTS.intTotal} 篇').test(document.body.innerText)) {
     problems.push('进度页没写「精读读完 ${FACTS.intDone} / ${FACTS.intTotal} 篇」');
+  }
+  if (!new RegExp('音标学过 ${FACTS.phonLearned} / ${FACTS.phonTotal} 个').test(document.body.innerText)) {
+    problems.push('进度页没写「音标学过 ${FACTS.phonLearned} / ${FACTS.phonTotal} 个」');
   }
   return { info, problems };
 })()`
@@ -1414,6 +1551,8 @@ const TESTS = {
   READ_FLOW: READ_FLOW_TEST,
   INT_LIST: INT_LIST_TEST,
   INT_FLOW: INT_FLOW_TEST,
+  PHON_OVERVIEW: PHON_OVERVIEW_TEST,
+  PHON_ONE: PHON_ONE_TEST,
   PROGRESS: PROGRESS_TEST,
   PROBE: PROBE_TEST,
   PROBE_DONE: PROBE_DONE_TEST,
